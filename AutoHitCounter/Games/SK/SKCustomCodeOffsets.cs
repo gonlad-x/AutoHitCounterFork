@@ -36,4 +36,8 @@ public class SKCustomCodeOffsets
     public const int EventLogWriteIdx = 0x3000;
     public const int EventLogCode = 0x3020;
     public const int EventLogBuffer = 0x3100;
+
+    public const int BossHealthBarWriteIdx = 0x4000;
+    public const int BossHealthBarCode = 0x4020;
+    public const int BossHealthBarBuffer = 0x4100;
 }

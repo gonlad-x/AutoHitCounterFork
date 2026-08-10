@@ -126,6 +126,7 @@ public class OverlaySettingsViewModel : BaseViewModel
     public bool ShowDiff          { get => Get<bool>();   set => Set(value); }
     public bool ShowPb            { get => Get<bool>();   set => Set(value); }
     public bool ShowIgt           { get => Get<bool>();   set => Set(value); }
+    public bool ShowBossTimer     { get => Get<bool>();   set => Set(value); }
     public bool ShowFooterTotals  { get => Get<bool>();   set => Set(value); }
     public bool ShowSplitBorder   { get => Get<bool>();   set => Set(value); }
     public int  SplitBorderHeight        { get => Get<int>();    set => Set(value); }
@@ -210,6 +211,7 @@ public class OverlaySettingsViewModel : BaseViewModel
     public string GroupHeaderPbColor             { get => Get<string>(); set => Set(value); }
 
     public bool PbMatchesHit { get => Get<bool>(); set => Set(value); }
+    public string BossTimeColor { get => Get<string>(); set => Set(value); }
     public string FooterHitFontColor          { get => Get<string>(); set => Set(value); }
     public string FooterHitsCurrentColor          { get => Get<string>(); set => Set(value); }
     public string FooterPbFontColor          { get => Get<string>(); set => Set(value); }

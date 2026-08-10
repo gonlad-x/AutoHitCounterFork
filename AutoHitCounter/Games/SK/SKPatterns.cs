@@ -29,6 +29,7 @@ public static class SKPatterns
         scanner.Queue(nameof(SakuraDance), SakuraDance, addr => SKOffsets.Hooks.SakuraDance = addr);
         scanner.Queue(nameof(SetEvent), SetEvent, addr => SKOffsets.Hooks.SetEvent = addr);
         scanner.Queue(nameof(StartNewGame), StartNewGame, addr => SKOffsets.Hooks.StartNewGame = addr);
+        scanner.Queue(nameof(DisplayBossHealthBar), DisplayBossHealthBar, addr => SKOffsets.Hooks.DisplayBossHealthBar = addr);
         
         scanner.Queue(nameof(HasSpEffectId), HasSpEffectId, addr => SKOffsets.Functions.HasSpEffectId = addr);
         scanner.Queue(nameof(GetEvent), GetEvent, addr => SKOffsets.Functions.GetEvent = addr);
@@ -222,7 +223,18 @@ public static class SKPatterns
         75,
         AddressingMode.Absolute
     );
-    
+
+    public static readonly Pattern DisplayBossHealthBar = new(
+        [
+            0x48, 0x89, 0x5C, 0x24, 0x10, 0x48, 0x89, 0x74, 0x24, 0x18, 0x48, 0x89, 0x7C, 0x24, 0x20,
+            0x41, 0x56, 0x48, 0x83, 0xEC, 0x20, 0x80, 0x7C, 0x24, 0x60, 0x00, 0x45, 0x8B, 0xF1,
+            0x41, 0x8B, 0xF8, 0x8B, 0xF2, 0x41, 0x8B, 0xC8, 0x74, 0x07
+        ],
+        "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
+        0,
+        AddressingMode.Absolute
+    );
+
     public static readonly Pattern HasSpEffectId = new(
         [
             0x48, 0x8B, 0x49, 0x08, 0x48, 0x85, 0xC9, 0x74, 0x15, 0x0F, 0x1F, 0x80, 0x00, 0x00, 0x00, 0x00, 0x39, 0x51,

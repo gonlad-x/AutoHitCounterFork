@@ -110,7 +110,6 @@ public static class ProfileMigrator
                 {1296, 11120830},           // Also Tomoe Geni
                 {9312, 1299},             // Isshin
                 {11125877, 1299}             // Isshin
-                
             },
             ["Elden Ring"] = new()
             {

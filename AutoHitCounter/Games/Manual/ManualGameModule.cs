@@ -22,6 +22,7 @@ public class ManualGameModule : IGameModule, IDisposable
     public event Action<List<EventLogEntry>> OnEventLogEntriesReceived;
     public event Action<long> OnTimeChanged;
     public event Action OnRunStart;
+    public event Action<uint> OnBossHealthBarSpawn;
 
     public ManualGameModule()
     {
@@ -66,5 +67,6 @@ public class ManualGameModule : IGameModule, IDisposable
         OnEventLogEntriesReceived = null;
         OnTimeChanged = null;
         OnRunStart = null;
+        OnBossHealthBarSpawn = null;
     }
 }

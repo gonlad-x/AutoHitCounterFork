@@ -3,6 +3,7 @@
 using System;
 using System.Collections.Generic;
 using System.Collections.ObjectModel;
+using System.ComponentModel;
 using System.Linq;
 using AutoHitCounter.Core;
 using AutoHitCounter.Enums;
@@ -23,19 +24,25 @@ public class ProfileEditorViewModel : BaseViewModel, IReorderHandler
 
     public bool IsManualGame { get; }
 
+    // Flag IDs with a confirmed boss Entity ID -- gates whether the "track boss kill
+    // time" checkbox is enabled for a given split's EventId in the row template.
+    public HashSet<uint> BossEntityFlagIds { get; }
+
     public ProfileEditorViewModel(
         Dictionary<uint, string> allEvents,
         IProfileService profileService,
         string gameName,
         GameTitle gameTitle,
         Profile activeProfile,
-        bool isManualGame = false)
+        bool isManualGame = false,
+        Dictionary<uint, uint> bossEntityIds = null)
     {
         IsManualGame = isManualGame;
         _allEvents = allEvents;
         _profileService = profileService;
         _gameName = gameName;
         _gameTitle = gameTitle;
+        BossEntityFlagIds = new HashSet<uint>((bossEntityIds ?? new Dictionary<uint, uint>()).Keys);
 
         Profiles = new ObservableCollection<Profile>(profileService.GetProfiles(gameName));
 
@@ -59,12 +66,19 @@ public class ProfileEditorViewModel : BaseViewModel, IReorderHandler
 
         ClearAutoSplitEventsCommand = new DelegateCommand(ClearEventIds, () => SelectedProfile != null);
 
-        Splits.CollectionChanged += (_, _) =>
+        Splits.CollectionChanged += (_, e) =>
         {
             OnPropertyChanged(nameof(SplitCount));
             OnPropertyChanged(nameof(HasGroups));
             MoveUpCommand.RaiseCanExecuteChange();
             MoveDownCommand.RaiseCanExecuteChange();
+
+            if (e.NewItems != null)
+                foreach (SplitEntry item in e.NewItems)
+                    item.PropertyChanged += OnSplitEntryPropertyChanged;
+            if (e.OldItems != null)
+                foreach (SplitEntry item in e.OldItems)
+                    item.PropertyChanged -= OnSplitEntryPropertyChanged;
         };
 
         SelectedTemplates.CollectionChanged += (_, _) => AddSelectedCommand.RaiseCanExecuteChanged();
@@ -267,6 +281,16 @@ public class ProfileEditorViewModel : BaseViewModel, IReorderHandler
 
     #region Private Methods
 
+    private void OnSplitEntryPropertyChanged(object sender, PropertyChangedEventArgs e)
+    {
+        // Most split edits go through a dedicated command/method that already sets
+        // IsDirty explicitly (Rename, Edit Event, Move, etc.) -- IsBossTimerEnabled is
+        // the one property bound directly to the row template with no such method, so
+        // it needs its own hook here or toggling it silently doesn't mark the profile dirty.
+        if (e.PropertyName == nameof(SplitEntry.IsBossTimerEnabled))
+            IsDirty = true;
+    }
+
     private void LoadProfile(Profile profile)
     {
         Splits.Clear();
@@ -282,7 +306,9 @@ public class ProfileEditorViewModel : BaseViewModel, IReorderHandler
                 PersonalBest = split.PersonalBest,
                 Type = split.Type,
                 GroupId = split.GroupId,
-                Notes = split.Notes
+                Notes = split.Notes,
+                IsBossTimerEnabled = split.IsBossTimerEnabled,
+                BossKillTimeBestMs = split.BossKillTimeBestMs
             });
 
         FilterEvents();
@@ -566,7 +592,9 @@ public class ProfileEditorViewModel : BaseViewModel, IReorderHandler
                 PersonalBest = split.PersonalBest,
                 Type = split.Type,
                 GroupId = split.GroupId,
-                Notes = split.Notes
+                Notes = split.Notes,
+                IsBossTimerEnabled = split.IsBossTimerEnabled,
+                BossKillTimeBestMs = split.BossKillTimeBestMs
             });
         if (selectedName != null)
             SelectedSplit = Splits.FirstOrDefault(s => s.Name == selectedName);

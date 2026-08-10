@@ -86,6 +86,7 @@ public static class SKOffsets
         public static nint ApplySpEffectDamage;
         public static nint SakuraDance;
         public static nint StartNewGame;
+        public static nint DisplayBossHealthBar;
     }
 
     public static class Functions
@@ -262,6 +263,16 @@ public static class SKOffsets
             _ => 0
         };
 
+        // Only confirmed for 1.6.0 (found via Ghidra, 2026-08-10) -- other versions
+        // fall back to AOB scanning only if the exe's FileVersion doesn't match any
+        // known SKVersion at all, so this hook simply won't install on 1.2.0-1.5.0
+        // until their offsets are confirmed too.
+        Hooks.DisplayBossHealthBar = moduleBase + Version switch
+        {
+            Version1_6_0 => 0x67C7C0,
+            _ => 0
+        };
+
         Hooks.StartNewGame = moduleBase + Version switch
         {
             Version1_2_0 => 0xD005C5,
@@ -352,6 +363,7 @@ public static class SKOffsets
         PrintOffset("SakuraDance", Hooks.SakuraDance);
         PrintOffset("SetEvent", Hooks.SetEvent);
         PrintOffset("StartNewGame", Hooks.StartNewGame);
+        PrintOffset("DisplayBossHealthBar", Hooks.DisplayBossHealthBar);
 
 
         Console.WriteLine("\n--- Functions ---");

@@ -27,4 +27,5 @@ public class OverlaySplit
     public int Diff { get; set; }
     public bool IsCurrent { get; set; }
     public bool IsParent { get; set; }
+    public string BossTime { get; set; }
 }

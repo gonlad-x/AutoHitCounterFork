@@ -1866,6 +1866,21 @@ ff c7                   inc    edi
 41 55                   push   r13
 e9 00 00 00 00          jmp    39 &lt;_main+0x39&gt;</value>
   </data>
+  <data name="SKBossHealthBarLog" xml:space="preserve">
+    <value>50                      push   rax
+53                      push   rbx
+8b 05 00 00 00 00       mov    eax,DWORD PTR [rip+0x0]        # 8 &lt;_main+0x8&gt;
+48 8d 1d 00 00 00 00    lea    rbx,[rip+0x0]        # f &lt;_main+0xf&gt;
+48 8d 1c 83             lea    rbx,[rbx+rax*4]
+89 13                   mov    DWORD PTR [rbx],edx
+ff c0                   inc    eax
+81 e0 ff 01 00 00       and    eax,0x1ff
+89 05 00 00 00 00       mov    DWORD PTR [rip+0x0],eax        # 23 &lt;_main+0x23&gt;
+5b                      pop    rbx
+58                      pop    rax
+48 89 5c 24 10          mov    QWORD PTR [rsp+0x10],rbx
+e9 00 00 00 00          jmp    2f &lt;_main+0x2f&gt;</value>
+  </data>
   <data name="DS3CheckStaggerIgnore" xml:space="preserve">
     <value>80 3d 00 00 00 00 00    cmp    BYTE PTR [rip+0x0],0x0        # 7 &lt;_main+0x7&gt;
 74 11                   je     1a &lt;original&gt;
@@ -2135,7 +2150,7 @@ General Naomori Kawarada,11100300
 General Tenzen Yamauchi,11100301
 Genichiro Ashina (Castle) / Genichiro Ashina (Gauntlet),11110800
 Genichiro Ashina (Reservoir),1027
-"Genichiro, Way of Tomoe / Genichiro, Way of Tomoe (Gauntlet)",1296
+"Genichiro, Way of Tomoe / Genichiro, Way of Tomoe (Gauntlet)",11120830
 Great Shinobi - Owl / Great Shinobi - Owl (Gauntlet),1359
 Guardian Ape,9304
 Gyoubu Oniwa,9301
@@ -2180,6 +2195,28 @@ Fake Monk (Gauntlet),9706
 Isshin Ashina (Gauntlet),9716
 "Owl (Father, Gauntlet) / Inner Father (Gauntlet)",11000809
 Inner Genichiro (Gauntlet),11110890</value>
+  </data>
+  <data name="SKBossEntityIds" xml:space="preserve">
+    <value>Flag,EntityID
+9301,1100800
+9304,1700800
+9305,2000800
+9306,1500800
+9310,2500800
+9316,1110920
+9317,1000900
+11110800,1110800
+11700850,1700850
+11100900,1100900
+12500950,2500850
+9701,1100800
+9704,1700800
+9706,1500800
+9715,1110900
+9716,1110920
+11020800,1000800
+1027,1120800
+11120830,1120830</value>
   </data>
   <data name="VanillaBabyJump" xml:space="preserve">
     <value>0f 51 c0                sqrtps xmm0,xmm0

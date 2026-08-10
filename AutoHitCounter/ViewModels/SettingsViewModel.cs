@@ -241,6 +241,19 @@ public class SettingsViewModel : BaseViewModel
         }
     }
 
+    private bool _skBossTimeTrackersEnabled;
+
+    public bool SKBossTimeTrackersEnabled
+    {
+        get => _skBossTimeTrackersEnabled;
+        set
+        {
+            if (!SetProperty(ref _skBossTimeTrackersEnabled, value)) return;
+            SettingsManager.Default.SKBossTimeTrackersEnabled = value;
+            SettingsManager.Default.Save();
+        }
+    }
+
     #endregion
 
     #region Dark Souls 2
@@ -403,6 +416,9 @@ public class SettingsViewModel : BaseViewModel
 
         _skNoTutorials = SettingsManager.Default.SKNoTutorials;
         OnPropertyChanged(nameof(SKNoTutorials));
+
+        _skBossTimeTrackersEnabled = SettingsManager.Default.SKBossTimeTrackersEnabled;
+        OnPropertyChanged(nameof(SKBossTimeTrackersEnabled));
     }
 
     private void ApplyDS2Settings()

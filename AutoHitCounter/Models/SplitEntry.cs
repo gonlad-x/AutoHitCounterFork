@@ -51,6 +51,20 @@ public class SplitEntry : INotifyPropertyChanged
     public string GroupId { get; set; }
     public string Notes { get; set; }
 
+    private bool _isBossTimerEnabled;
+
+    public bool IsBossTimerEnabled
+    {
+        get => _isBossTimerEnabled;
+        set
+        {
+            _isBossTimerEnabled = value;
+            OnPropertyChanged();
+        }
+    }
+
+    public long? BossKillTimeBestMs { get; set; }
+
     public string Label => DisplayName ?? Name;
     public bool IsAuto => EventId.HasValue;
 

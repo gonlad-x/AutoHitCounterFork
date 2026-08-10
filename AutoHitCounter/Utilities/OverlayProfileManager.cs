@@ -59,6 +59,7 @@ public class OverlayProfileManager
             var json = File.ReadAllText(path);
             var config = JsonSerializer.Deserialize<OverlayConfig>(json, ReadOptions) ?? CreateDefaultConfig();
             EnsureGroupHeaderDefaults(config);
+            EnsureBossTimeDefaults(config);
             return config;
         }
         catch
@@ -91,6 +92,20 @@ public class OverlayProfileManager
             c.GroupHeaderHitsHighlightColor = d.GroupHeaderHitsHighlightColor;
         if (string.IsNullOrEmpty(c.GroupHeaderPbColor)) c.GroupHeaderPbColor = d.GroupHeaderPbColor;
         if (string.IsNullOrEmpty(c.GroupHeaderFontFamily)) c.GroupHeaderFontFamily = d.GroupHeaderFontFamily;
+    }
+
+    /// <summary>
+    /// Fills boss-time fields when loading profiles saved before that feature existed --
+    /// BossTimeColor being empty is the "this profile predates the feature" sentinel,
+    /// same trick as EnsureGroupHeaderDefaults uses GroupHeaderFontSize for.
+    /// </summary>
+    private static void EnsureBossTimeDefaults(OverlayConfig c)
+    {
+        if (!string.IsNullOrEmpty(c.BossTimeColor)) return;
+
+        var d = CreateDefaultConfig();
+        c.ShowBossTimer = d.ShowBossTimer;
+        c.BossTimeColor = d.BossTimeColor;
     }
 
     public void SaveActiveProfile(OverlayConfig config)
@@ -196,6 +211,7 @@ public class OverlayProfileManager
             ShowDiff = true,
             ShowPb = true,
             ShowIgt = true,
+            ShowBossTimer = true,
             OverlayWidth = 380,
             OverlayHeight = 500,
             ShowProgress = true,
@@ -280,6 +296,8 @@ public class OverlayProfileManager
 
             PbColor = "#bbbbbb",
             PbMatchesHit = false,
+
+            BossTimeColor = "#bbbbbb",
 
             ShowFooterBorder = true,
             FooterBorderHeight = 1,

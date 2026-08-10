@@ -125,6 +125,7 @@
     <Compile Include="Converters\LogEntryToBrushConverter.cs" />
     <Compile Include="Converters\ParentChildMarginConverter.cs" />
     <Compile Include="Converters\ParentChildMarginMultiConverter.cs" />
+    <Compile Include="Converters\BossTimerAvailabilityConverter.cs" />
     <Compile Include="Converters\ScrollbarVisibleToMarginConverter.cs" />
     <Compile Include="Converters\SizeToRectConverter.cs" />
     <Compile Include="Converters\StringToBrushConverter.cs" />
@@ -175,6 +176,7 @@
     <Compile Include="Games\ER\EldenRingRunStartService.cs" />
     <Compile Include="Games\ER\EldenRingSettingsService.cs" />
     <Compile Include="Games\ER\EldenRingVersion.cs" />
+    <Compile Include="Games\SK\SKBossHealthBarService.cs" />
     <Compile Include="Games\SK\SKCustomCodeOffsets.cs" />
     <Compile Include="Games\SK\SKEventService.cs" />
     <Compile Include="Games\SK\SKHitService.cs" />

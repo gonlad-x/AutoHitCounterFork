@@ -23,11 +23,12 @@ public class GameModuleFactory(
     HookManager hookManager,
     ITickService tickService) : IGameModuleFactory
 {
-    private class GameRegistration(string processName, string eventResource, bool isEventLogSupported)
+    private class GameRegistration(string processName, string eventResource, bool isEventLogSupported, string bossEntityIdResource = null)
     {
         public string ProcessName { get; } = processName;
         public string EventResource { get; } = eventResource;
         public bool IsEventLogSupported { get; } = isEventLogSupported;
+        public string BossEntityIdResource { get; } = bossEntityIdResource;
     }
 
     private static readonly Dictionary<GameTitle, GameRegistration> Registrations = new()
@@ -35,7 +36,7 @@ public class GameModuleFactory(
         [GameTitle.DarkSoulsRemastered] = new("darksoulsremastered", "DSREvents", true),
         [GameTitle.DarkSouls2]          = new("darksoulsii", "DS2Events", true),
         [GameTitle.DarkSouls3]          = new("darksoulsiii", "DS3Events", true),
-        [GameTitle.Sekiro]              = new("sekiro", "SKEvents", true),
+        [GameTitle.Sekiro]              = new("sekiro", "SKEvents", true, "SKBossEntityIds"),
         [GameTitle.EldenRing]           = new("eldenring", "EldenRingEvents", true),
     };
 
@@ -52,6 +53,12 @@ public class GameModuleFactory(
         title == GameTitle.Manual ? new()
         : Registrations.TryGetValue(title, out var reg) && reg.EventResource != null
             ? EventLoader.GetEvents(reg.EventResource)
+            : new();
+
+    public Dictionary<uint, uint> GetBossEntityIdsForGame(GameTitle title) =>
+        title == GameTitle.Manual ? new()
+        : Registrations.TryGetValue(title, out var reg) && reg.BossEntityIdResource != null
+            ? EventLoader.GetEntityIds(reg.BossEntityIdResource)
             : new();
 
     public IGameModule CreateModule(Game game, Dictionary<uint, (string Name, int Required, int Hit)> events, IHitRulesProvider rules)

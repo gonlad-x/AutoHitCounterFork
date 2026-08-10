@@ -14,6 +14,7 @@ public class OverlayConfig
     public bool ShowDiff { get; set; }
     public bool ShowPb { get; set; }
     public bool ShowIgt { get; set; }
+    public bool ShowBossTimer { get; set; }
     public int OverlayWidth { get; set; }
     public int OverlayHeight { get; set; }
     public bool ShowProgress { get; set; }
@@ -141,6 +142,10 @@ public class OverlayConfig
 
     public string PbColor { get; set; }
     public bool PbMatchesHit { get; set; }
+
+    // Boss Time Column
+
+    public string BossTimeColor { get; set; }
 
 
     // Footer Section //
