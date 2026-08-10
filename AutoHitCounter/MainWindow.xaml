@@ -14,8 +14,8 @@
         WindowStyle="None"
         AllowsTransparency="True"
         Background="Transparent"
-        Title="Auto Hit Counter" MinHeight="600" MinWidth="525"
-        Height="800" Width="525"
+        Title="Auto Hit Counter" MinHeight="600" MinWidth="620"
+        Height="800" Width="620"
         ResizeMode="CanResize"
         behaviors:WindowResizeBehavior.EnableCustomResize="True">
     <Window.Resources>
@@ -354,6 +354,7 @@
                                 <ColumnDefinition Width="*" />
                                 <ColumnDefinition Width="*" />
                                 <ColumnDefinition Width="*" />
+                                <ColumnDefinition Width="*" />
                             </Grid.ColumnDefinitions>
 
                             <!-- Split header + current/total -->
@@ -476,20 +477,28 @@
 
                             <TextBlock Grid.Column="1"
                                        Text="Hits"
+                                       Margin="6,0,6,0"
                                        FontFamily="{StaticResource AppFont}"
                                        FontSize="{StaticResource FontSizeHeader}"
                                        HorizontalAlignment="Center" VerticalAlignment="Center" />
 
                             <TextBlock Grid.Column="2"
                                        Text="Diff"
-                                       Margin="0,0,7,0"
+                                       Margin="6,0,10,0"
                                        FontFamily="{StaticResource AppFont}"
                                        FontSize="{StaticResource FontSizeHeader}"
                                        HorizontalAlignment="Center" VerticalAlignment="Center" />
 
                             <TextBlock Grid.Column="3"
                                        Text="PB"
-                                       Margin="0,0,8,0"
+                                       Margin="6,0,12,0"
+                                       FontFamily="{StaticResource AppFont}"
+                                       FontSize="{StaticResource FontSizeHeader}"
+                                       HorizontalAlignment="Center" VerticalAlignment="Center" />
+
+                            <TextBlock Grid.Column="4"
+                                       Text="Time"
+                                       Margin="6,0,12,0"
                                        FontFamily="{StaticResource AppFont}"
                                        FontSize="{StaticResource FontSizeHeader}"
                                        HorizontalAlignment="Center" VerticalAlignment="Center" />
@@ -522,6 +531,9 @@
                             RelativeSource={RelativeSource AncestorType=ContextMenu}}" />
                                 <MenuItem Header="Reset Split Hits"
                                           Command="{Binding PlacementTarget.DataContext.ResetSelectedSplitHitsCommand,
+                            RelativeSource={RelativeSource AncestorType=ContextMenu}}" />
+                                <MenuItem Header="Reset Boss Timer"
+                                          Command="{Binding PlacementTarget.DataContext.ResetSelectedSplitBossTimerCommand,
                             RelativeSource={RelativeSource AncestorType=ContextMenu}}" />
                                 <MenuItem Header="Mark split as Distance PB"
                                           Command="{Binding PlacementTarget.DataContext.SetDistancePbCommand,
@@ -616,6 +628,7 @@
                                             <ColumnDefinition Width="*" />
                                             <ColumnDefinition Width="*" />
                                             <ColumnDefinition Width="*" />
+                                            <ColumnDefinition Width="*" />
                                         </Grid.ColumnDefinitions>
 
                                         <!-- Drag handle -->
@@ -698,6 +711,7 @@
                                         <TextBlock Grid.Column="1"
                                                    Text="{Binding NumOfHits}"
                                                    Foreground="{Binding HitsBrush}"
+                                                   Margin="6,0,6,0"
                                                    FontFamily="{StaticResource AppFont}"
                                                    FontSize="{StaticResource FontSizeBody}"
                                                    HorizontalAlignment="Center" VerticalAlignment="Center">
@@ -713,7 +727,7 @@
                                         </TextBlock>
                                         <!-- Diff -->
                                         <TextBlock Grid.Column="2"
-
+                                                   Margin="6,0,10,0"
                                                    Text="{Binding Diff}"
                                                    Foreground="{Binding DiffBrush}"
                                                    FontFamily="{StaticResource AppFont}"
@@ -731,6 +745,7 @@
                                         </TextBlock>
                                         <!-- PB -->
                                         <TextBlock Grid.Column="3"
+                                                   Margin="6,0,12,0"
                                                    Text="{Binding PersonalBest, Mode=OneWay}"
                                                    FontFamily="{StaticResource AppFont}"
                                                    FontSize="{StaticResource FontSizeBody}"
@@ -768,8 +783,26 @@
                                             </TextBox.Style>
                                         </TextBox>
 
+                                        <!-- Boss Time -->
+                                        <TextBlock Grid.Column="4"
+                                                   Margin="6,0,4,0"
+                                                   Text="{Binding BossKillTimeDisplay}"
+                                                   FontFamily="{StaticResource AppFont}"
+                                                   FontSize="{StaticResource FontSizeBody}"
+                                                   HorizontalAlignment="Center" VerticalAlignment="Center">
+                                            <TextBlock.Style>
+                                                <Style TargetType="TextBlock">
+                                                    <Style.Triggers>
+                                                        <DataTrigger Binding="{Binding IsParent}" Value="True">
+                                                            <Setter Property="Visibility" Value="Collapsed" />
+                                                        </DataTrigger>
+                                                    </Style.Triggers>
+                                                </Style>
+                                            </TextBlock.Style>
+                                        </TextBlock>
+
                                         <!-- Context Menu Indicator -->
-                                        <TextBlock Grid.Column="3"
+                                        <TextBlock Grid.Column="4"
                                                    Text="⋯"
                                                    MouseDown="SplitContextDots_MouseDown"
                                                    Cursor="Hand"
@@ -907,6 +940,7 @@
                                 <ColumnDefinition Width="*" />
                                 <ColumnDefinition Width="*" />
                                 <ColumnDefinition Width="*" />
+                                <ColumnDefinition Width="*" />
                             </Grid.ColumnDefinitions>
                             <TextBlock Grid.Column="0"
                                        Text="Total"
@@ -916,20 +950,21 @@
                                        VerticalAlignment="Center"
                                        Margin="30,0,0,0" />
                             <TextBlock Grid.Column="1"
+                                       Margin="6,0,6,0"
                                        Text="{Binding TotalHits}"
                                        FontFamily="{StaticResource AppFont}"
                                        FontSize="{StaticResource FontSizeBody}"
                                        Foreground="{Binding TotalHitsBrush}"
                                        HorizontalAlignment="Center" VerticalAlignment="Center" />
                             <TextBlock Grid.Column="2"
-                                       Margin="0,0,4,0"
+                                       Margin="6,0,10,0"
                                        Text="{Binding TotalDiff}"
                                        Foreground="{DynamicResource TotalDiffBrush}"
                                        FontFamily="{StaticResource AppFont}"
                                        FontSize="{StaticResource FontSizeBody}"
                                        HorizontalAlignment="Center" VerticalAlignment="Center" />
                             <TextBlock Grid.Column="3"
-                                       Margin="0,0,8,0"
+                                       Margin="6,0,12,0"
                                        Text="{Binding TotalPb}"
                                        FontFamily="{StaticResource AppFont}"
                                        FontSize="{StaticResource FontSizeBody}"

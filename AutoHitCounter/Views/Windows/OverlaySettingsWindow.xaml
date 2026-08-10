@@ -147,6 +147,7 @@
                         <CheckBox Content="Show Diff" IsChecked="{Binding ShowDiff}" Margin="0,2,0,2" />
                         <CheckBox Content="Show PB" IsChecked="{Binding ShowPb}" Margin="0,2,0,2" />
                         <CheckBox Content="Show IGT" IsChecked="{Binding ShowIgt}" Margin="0,2,0,2" />
+                        <CheckBox Content="Show Boss Time Tracker" IsChecked="{Binding ShowBossTimer}" Margin="0,2,0,2" />
                         <CheckBox Content="Show Attempts" IsChecked="{Binding ShowAttempts}" Margin="0,2,0,2" />
                         <CheckBox Content="Show Progress" IsChecked="{Binding ShowProgress}" Margin="0,2,0,2" />
                         <CheckBox Content="Show Progress Bar" IsChecked="{Binding ShowProgressBar}" Margin="0,2,0,2" />
@@ -587,6 +588,13 @@
                                 <Rectangle Fill="{Binding PbColor, Converter={StaticResource StringToBrushConverter}}" />
                             </Border>
                             <TextBox Text="{Binding PbColor, UpdateSourceTrigger=PropertyChanged}" Width="150" Tag="PbColor" ContextMenu="{StaticResource ResetContextMenu}"/>
+                        </StackPanel>
+                        <StackPanel Style="{StaticResource ColorRow}">
+                            <TextBlock Text="Boss Time Column" Style="{StaticResource FieldLabel}" />
+                            <Border Width="24" Height="22" BorderBrush="#444" BorderThickness="1" Margin="0,0,4,0">
+                                <Rectangle Fill="{Binding BossTimeColor, Converter={StaticResource StringToBrushConverter}}" />
+                            </Border>
+                            <TextBox Text="{Binding BossTimeColor, UpdateSourceTrigger=PropertyChanged}" Width="150" Tag="BossTimeColor" ContextMenu="{StaticResource ResetContextMenu}"/>
                         </StackPanel>
                         <StackPanel Style="{StaticResource ColorRow}">
                             <TextBlock Text="Row (Not Cleared)" Style="{StaticResource FieldLabel}" />

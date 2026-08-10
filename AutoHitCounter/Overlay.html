@@ -67,6 +67,9 @@
         .header span:not(:first-child) {
             text-align: center;
             color: #bbb;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
         }
 
         /* Individual split row */
@@ -89,8 +92,18 @@
         /* Center align numeric columns */
         .split-row .col-hits,
         .split-row .col-diff,
-        .split-row .col-pb {
+        .split-row .col-pb,
+        .split-row .col-boss-time {
             text-align: center;
+        }
+
+        /* Boss Time's "m:ss" values are wider than the other narrow numeric columns --
+           truncate instead of visually bleeding into the next column if the overlay
+           is too narrow to comfortably fit it. */
+        .split-row .col-boss-time {
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
         }
 
         /* Current split when hit (red) */
@@ -136,7 +149,8 @@
         /* Hide numbers only on the active group header (children are visible) */
         .split-row.parent:not(.group-inactive) .col-hits,
         .split-row.parent:not(.group-inactive) .col-diff,
-        .split-row.parent:not(.group-inactive) .col-pb {
+        .split-row.parent:not(.group-inactive) .col-pb,
+        .split-row.parent:not(.group-inactive) .col-boss-time {
             visibility: hidden;
         }
 
@@ -172,7 +186,8 @@
         /* Center align footer numeric columns */
         .footer .col-hits,
         .footer .col-diff,
-        .footer .col-pb {
+        .footer .col-pb,
+        .footer .col-boss-time {
             text-align: center;
         }
 
@@ -237,6 +252,7 @@
             showDiff: true,
             showPb: true,
             showIgt: true,
+            showBossTimer: true,
             overlayWidth: 380,
             overlayHeight: 500,
             showProgress: true,
@@ -283,6 +299,7 @@
             groupHeaderPbColor: '#bbbbbb',
             groupCollapseMode: 2,
             pbColor: '#bbbbbb',
+            bossTimeColor: '#bbbbbb',
             showFooterTotals: true,
             groupProgressMode: 0,
             igtFontFamily: 'Consolas',
@@ -396,6 +413,7 @@
             let cols = '3fr 0.5fr';
             if (config.showDiff) cols += ' 0.5fr';
             if (config.showPb) cols += ' 0.5fr';
+            if (config.showBossTimer) cols += ' 1.2fr';
             return cols;
         }
 
@@ -478,6 +496,7 @@
                 .split-row.hit .col-pb { color: ${config.pbMatchesHit ? config.hitsActiveColor : config.pbColor}; }
                 .split-row.cleared .col-pb { color: ${config.pbMatchesHit ? config.hitsClearedColor : config.pbColor}; }
                 .split-row.current.hit .col-pb { color: ${config.pbMatchesHit ? config.hitsActiveColor : config.pbColor}; }
+                .split-row .col-boss-time { color: ${config.bossTimeColor}; }
                 .split-row.parent .col-hits { color: ${ghHits}; }
                 .split-row.parent .col-pb { color: ${ghPb}; }
                 .split-row.parent {
@@ -567,7 +586,8 @@
             const attemptsHtml = config.showAttempts ? ` <span id="attempts"></span>` : '';
             headerEl.innerHTML = `<span>Split${progressHtml}${attemptsHtml}</span><span>Hits</span>`
                 + (config.showDiff ? '<span>Diff</span>' : '')
-                + (config.showPb ? '<span>PB</span>' : '');
+                + (config.showPb ? '<span>PB</span>' : '')
+                + (config.showBossTimer ? '<span>Time</span>' : '');
         }
 
         function computeGroupVisibility(allSplits, currentIndex) {
@@ -900,7 +920,7 @@
             const collapsedClass = collapsed ? ' collapsed' : '';
             const inactiveClass = inactiveParent ? ' group-inactive' : '';
 
-            let hitsCell, diffCell, pbCell;
+            let hitsCell, diffCell, pbCell, bossTimeCell;
 
             if (totals) {
                 const tDiffClass = totals.diff > 0 ? 'diff-pos' : totals.diff < 0 ? 'diff-neg' : 'diff-zero';
@@ -910,14 +930,17 @@
                 hitsCell = `<span class="col-hits" ${hitsStyle}>${totals.hits}</span>`;
                 diffCell = config.showDiff ? `<span class="col-diff ${tDiffClass}">${tDiffText}</span>` : '';
                 pbCell = config.showPb ? `<span class="col-pb">${totals.pb}</span>` : '';
+                bossTimeCell = config.showBossTimer ? `<span class="col-boss-time"></span>` : '';
             } else if (s.isParent && inactiveParent && Number(config.groupProgressMode) !== 2) {
                 hitsCell = `<span class="col-hits"></span>`;
                 diffCell = config.showDiff ? `<span class="col-diff"></span>` : '';
                 pbCell = config.showPb ? `<span class="col-pb"></span>` : '';
+                bossTimeCell = config.showBossTimer ? `<span class="col-boss-time"></span>` : '';
             } else {
                 hitsCell = `<span class="col-hits">${s.hits}</span>`;
                 diffCell = config.showDiff ? `<span class="col-diff ${diffClass}">${diffText}</span>` : '';
                 pbCell = config.showPb ? `<span class="col-pb">${s.pb}</span>` : '';
+                bossTimeCell = config.showBossTimer ? `<span class="col-boss-time">${s.bossTime || ''}</span>` : '';
             }
 
             return `<div class="split-row${parent}${current}${cleared}${hit}${dpbhighlight}${collapsedClass}${inactiveClass}" style="grid-template-columns: ${cols}">
@@ -925,6 +948,7 @@
                 ${hitsCell}
                 ${diffCell}
                 ${pbCell}
+                ${bossTimeCell}
             </div>`;
         }
 

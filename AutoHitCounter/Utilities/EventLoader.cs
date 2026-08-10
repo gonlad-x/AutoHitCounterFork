@@ -31,4 +31,29 @@ public static class EventLoader
         }
         return dict;
     }
+
+    public static Dictionary<uint, uint> GetEntityIds(string resourceName)
+    {
+        var dict = new Dictionary<uint, uint>();
+        string csvData = Resources.ResourceManager.GetString(resourceName);
+        if (string.IsNullOrWhiteSpace(csvData)) return dict;
+
+        var regex = new Regex(@"^(\d+)\s*,\s*(\d+)$", RegexOptions.Compiled);
+
+        using var reader = new StringReader(csvData);
+        string line;
+        while ((line = reader.ReadLine()) != null)
+        {
+            if (string.IsNullOrWhiteSpace(line) || line.StartsWith("#")) continue;
+
+            var match = regex.Match(line.Trim());
+            if (match.Success
+                && uint.TryParse(match.Groups[1].Value, out uint flag)
+                && uint.TryParse(match.Groups[2].Value, out uint entityId))
+            {
+                dict[flag] = entityId;
+            }
+        }
+        return dict;
+    }
 }

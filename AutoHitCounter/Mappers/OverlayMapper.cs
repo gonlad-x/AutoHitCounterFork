@@ -1,5 +1,6 @@
-﻿// 
+﻿//
 
+using System;
 using System.Linq;
 using AutoHitCounter.Models;
 using AutoHitCounter.ViewModels;
@@ -28,8 +29,12 @@ public static class OverlayMapper
                 Pb = s.PersonalBest,
                 Diff = s.Diff,
                 IsCurrent = s.IsCurrent,
-                IsParent = s.IsParent
+                IsParent = s.IsParent,
+                BossTime = FormatBossTime(s.BossKillTimeMs)
             }).ToList()
         };
     }
+
+    private static string FormatBossTime(long? ms)
+        => ms.HasValue ? TimeSpan.FromMilliseconds(ms.Value).ToString(@"m\:ss") : "";
 }

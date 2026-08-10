@@ -21,6 +21,7 @@
         <converters:ExpanderArrowConverter x:Key="ExpanderArrowConverter" />
         <converters:SizeToRectConverter x:Key="SizeToRectConverter"/>
         <converters:ParentChildMarginMultiConverter x:Key="ParentChildMarginMultiConverter" />
+        <converters:BossTimerAvailabilityConverter x:Key="BossTimerAvailabilityConverter" />
         <BooleanToVisibilityConverter x:Key="BoolToVisConverter" />
         <Style x:Key="Separator" TargetType="Separator">
             <Setter Property="Background" Value="#4a2d52" />
@@ -514,6 +515,17 @@
 
 
                                     <StackPanel Grid.Column="1" Orientation="Horizontal">
+                                        <CheckBox Content="⏱" ToolTip="Track boss kill time (healthbar spawn to defeat)"
+                                                  IsChecked="{Binding IsBossTimerEnabled}"
+                                                  VerticalAlignment="Center" Margin="0,0,8,0">
+                                            <CheckBox.Visibility>
+                                                <MultiBinding Converter="{StaticResource BossTimerAvailabilityConverter}">
+                                                    <Binding Path="EventId" />
+                                                    <Binding Path="DataContext.BossEntityFlagIds"
+                                                             RelativeSource="{RelativeSource AncestorType=ListBox}" />
+                                                </MultiBinding>
+                                            </CheckBox.Visibility>
+                                        </CheckBox>
                                         <Button Content="×" Foreground="#c05050"
                                                 Command="{Binding DataContext.RemoveCommand,
                                         RelativeSource={RelativeSource AncestorType=ListBox}}"

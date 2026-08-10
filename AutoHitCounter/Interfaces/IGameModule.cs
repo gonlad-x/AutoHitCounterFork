@@ -13,6 +13,7 @@ public interface IGameModule
     event Action<List<EventLogEntry>> OnEventLogEntriesReceived;
     event Action<long> OnTimeChanged;
     event Action OnRunStart;
+    event Action<uint> OnBossHealthBarSpawn;
     void UpdateEvents(Dictionary<uint, (string Name, int Required, int Hit)> events);
     void ApplySettings(bool onlyEnabled = false);
     void SetEventLogEnabled(bool enabled);

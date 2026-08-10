@@ -29,6 +29,7 @@ public class SKModule : IGameModule, IDisposable, IVersionedGameModule
     private SKSettingsService _settingsService;
     private EventLogReader _eventLogReader;
     private SKRunStartService _runStartService;
+    private SKBossHealthBarService _bossHealthBarService;
 
     public event Action OnHit;
     public event Action OnEventSet;
@@ -36,6 +37,7 @@ public class SKModule : IGameModule, IDisposable, IVersionedGameModule
     public event Action<long> OnTimeChanged;
     public event Action OnRunStart;
     public event Action OnVersionDetected;
+    public event Action<uint> OnBossHealthBarSpawn;
 
     public SKModule(IMemoryService memoryService, IStateService stateService, HookManager hookManager,
         ITickService tickService, Dictionary<uint, (string Name, int Required, int Hit)> events, IHitRulesProvider rules)
@@ -76,6 +78,7 @@ public class SKModule : IGameModule, IDisposable, IVersionedGameModule
             Base + EventLogWriteIdx,
             Base + EventLogBuffer);
         _runStartService = new SKRunStartService(_memoryService, _hookManager);
+        _bossHealthBarService = new SKBossHealthBarService(_memoryService, _hookManager);
         _eventLogReader.EntriesReceived += entries => OnEventLogEntriesReceived?.Invoke(entries);
 
         ApplySettings(onlyEnabled: true);
@@ -83,6 +86,7 @@ public class SKModule : IGameModule, IDisposable, IVersionedGameModule
         _eventService.InstallHook();
         _hitService.InstallHooks();
         _runStartService.InstallHook();
+        _bossHealthBarService.InstallHook();
         
         ApplyRules();
 
@@ -120,6 +124,11 @@ public class SKModule : IGameModule, IDisposable, IVersionedGameModule
             OnEventSet?.Invoke();
         }
 
+        if (_bossHealthBarService.TryGetLatestSpawn(out var entityId))
+        {
+            OnBossHealthBarSpawn?.Invoke(entityId);
+        }
+
         _eventLogReader.Poll();
 
         var igtPtr  = _memoryService.Read<nint>(SKOffsets.GameDataMan.Base) + SKOffsets.GameDataMan.Igt;
@@ -141,6 +150,7 @@ public class SKModule : IGameModule, IDisposable, IVersionedGameModule
         OnEventLogEntriesReceived = null;
         OnTimeChanged = null;
         OnRunStart = null;
+        OnBossHealthBarSpawn = null;
     }
 
     public void UpdateEvents(Dictionary<uint, (string Name, int Required, int Hit)> events)

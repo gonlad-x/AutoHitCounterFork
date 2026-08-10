@@ -1,5 +1,6 @@
 ﻿//
 
+using System;
 using System.Windows;
 using System.Windows.Media;
 using AutoHitCounter.Enums;
@@ -74,6 +75,38 @@ public class SplitViewModel : BaseViewModel
         get => _isAuto;
         set => SetProperty(ref _isAuto, value);
     }
+
+    private bool _isBossTimerEnabled;
+
+    public bool IsBossTimerEnabled
+    {
+        get => _isBossTimerEnabled;
+        set => SetProperty(ref _isBossTimerEnabled, value);
+    }
+
+    private long? _bossKillTimeMs;
+
+    public long? BossKillTimeMs
+    {
+        get => _bossKillTimeMs;
+        set
+        {
+            if (SetProperty(ref _bossKillTimeMs, value))
+                OnPropertyChanged(nameof(BossKillTimeDisplay));
+        }
+    }
+
+    private long? _bossKillTimeBestMs;
+
+    public long? BossKillTimeBestMs
+    {
+        get => _bossKillTimeBestMs;
+        set => SetProperty(ref _bossKillTimeBestMs, value);
+    }
+
+    public string BossKillTimeDisplay => BossKillTimeMs is { } ms
+        ? TimeSpan.FromMilliseconds(ms).ToString(@"m\:ss")
+        : "";
 
     private SplitType _type = SplitType.Child;
 
