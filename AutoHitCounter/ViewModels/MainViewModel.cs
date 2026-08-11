@@ -727,6 +727,7 @@ namespace AutoHitCounter.ViewModels
         private long _bossTimerAccumulatedMs; // elapsed folded in from segments before the current one
         private bool _bossTimerIsPaused;
         private SplitViewModel _bossTimerSplit;
+        private uint? _bossTimerFlag;          // EventId of the fight currently being timed, for phase-transition detection
 
         private void HandleBossHealthBarSpawn(uint entityId)
         {
@@ -750,13 +751,23 @@ namespace AutoHitCounter.ViewModels
                 if (!bossEntityIds.TryGetValue(entry.EventId.Value, out var expectedEntityIds)) continue;
                 if (!expectedEntityIds.Contains(entityId)) continue;
 
-                // Restarting on the latest spawn (rather than keeping the first) is deliberate:
-                // a wipe/retry before the kill flag fires should reset the clock, so the
-                // recorded time always reflects only the final, successful attempt.
+                // Any healthbar spawn matching the flag already being timed -- a genuine
+                // phase transition (new entity ID), or the bar simply hiding/reshowing for
+                // the same entity (decapitation-style transitions, stealth-deathblow prompts,
+                // etc.) -- is left alone. There's no reliable way to tell that apart from a
+                // genuine wipe/retry using entity IDs alone (Guardian Ape's decapitation
+                // reuses the same entity ID, so a "repeat means retry" rule was resetting a
+                // clean, no-death run). Same policy as hit counting: no auto-detection of
+                // wipes, the clock only resets via an explicit action -- the Reset Boss Timer
+                // hotkey, or resetting the split/run.
+                if (_bossTimerFlag == entry.EventId.Value)
+                    return;
+
                 _bossTimerStartIgtMs = (long)InGameTime.TotalMilliseconds;
                 _bossTimerAccumulatedMs = 0;
                 _bossTimerIsPaused = false;
                 _bossTimerSplit = i < Splits.Count ? Splits[i] : null;
+                _bossTimerFlag = entry.EventId.Value;
                 if (_bossTimerSplit != null) _bossTimerSplit.BossKillTimeMs = null;
                 return;
             }
@@ -799,24 +810,32 @@ namespace AutoHitCounter.ViewModels
             _bossTimerAccumulatedMs = 0;
             _bossTimerIsPaused = false;
             _bossTimerSplit = CurrentSplit;
+            _bossTimerFlag = entry.EventId;
             CurrentSplit.BossKillTimeMs = null;
         }
 
-        // Resets the running/paused boss timer for CurrentSplit back to zero without
-        // changing its running/paused state, bound to the ResetBossTimer hotkey -- e.g.
-        // after a wipe, restart the clock immediately rather than toggling pause/resume
-        // twice or waiting for the next healthbar-spawn detection. No-ops if no timer is
-        // currently tracking CurrentSplit.
+        // Resets CurrentSplit's boss timer, bound to the ResetBossTimer hotkey. This fully
+        // stops and clears tracking -- as if the split had never been encountered this
+        // attempt -- rather than zeroing-but-continuing like a stopwatch reset. That
+        // distinction matters because there's no "left the boss area" detection: without a
+        // full clear, resetting mid-fight (e.g. after quitting out) would leave the clock
+        // live-ticking from 0 forever, even while the player is standing outside the arena.
+        // Only a genuine healthbar spawn (HandleBossHealthBarSpawn's normal reset/start
+        // path) starts it running again from here.
         private void ResetBossTimer()
         {
             if (!SettingsManager.Default.SKBossTimeTrackersEnabled) return;
             if (_selectedGame != _orchestrator.ActiveGame) return;
             if (IsPracticeMode || IsRunComplete || CurrentSplit == null) return;
-            if (_bossTimerSplit != CurrentSplit) return;
 
-            _bossTimerAccumulatedMs = 0;
-            if (!_bossTimerIsPaused) _bossTimerStartIgtMs = (long)InGameTime.TotalMilliseconds;
-            CurrentSplit.BossKillTimeMs = 0;
+            var entry = GetActiveProfileSplitEntry(CurrentSplit);
+            if (!IsBossTimerEligible(entry)) return;
+
+            if (_bossTimerSplit == CurrentSplit)
+                ClearBossTimerState();
+
+            CurrentSplit.BossKillTimeMs = null;
+
             SaveRunState();
             _overlayServerService.BroadcastState(OverlayMapper.MapFrom(this));
         }
@@ -860,6 +879,7 @@ namespace AutoHitCounter.ViewModels
             _bossTimerAccumulatedMs = 0;
             _bossTimerIsPaused = false;
             _bossTimerSplit = null;
+            _bossTimerFlag = null;
         }
 
         private SplitEntry GetActiveProfileSplitEntry(SplitViewModel split)
