@@ -76,14 +76,6 @@ public class SplitViewModel : BaseViewModel
         set => SetProperty(ref _isAuto, value);
     }
 
-    private bool _isBossTimerEnabled;
-
-    public bool IsBossTimerEnabled
-    {
-        get => _isBossTimerEnabled;
-        set => SetProperty(ref _isBossTimerEnabled, value);
-    }
-
     private long? _bossKillTimeMs;
 
     public long? BossKillTimeMs
@@ -104,9 +96,24 @@ public class SplitViewModel : BaseViewModel
         set => SetProperty(ref _bossKillTimeBestMs, value);
     }
 
+    private bool _isPast;
+
+    // Set by MainViewModel whenever the current-split cursor moves -- true for any split
+    // already behind the cursor (or all splits once the run is complete), regardless of
+    // whether it's boss-timer-eligible. Drives the "-" for a passed split with no time.
+    public bool IsPast
+    {
+        get => _isPast;
+        set
+        {
+            if (SetProperty(ref _isPast, value))
+                OnPropertyChanged(nameof(BossKillTimeDisplay));
+        }
+    }
+
     public string BossKillTimeDisplay => BossKillTimeMs is { } ms
         ? TimeSpan.FromMilliseconds(ms).ToString(@"m\:ss")
-        : "";
+        : IsPast ? "-" : "";
 
     private SplitType _type = SplitType.Child;
 

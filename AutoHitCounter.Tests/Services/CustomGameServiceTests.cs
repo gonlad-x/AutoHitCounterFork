@@ -259,7 +259,7 @@ public class CustomGameServiceTests
     public void Rename_RenamesRunStateSnapshots()
     {
         _store.Raw = "Alpha";
-        _runStateService.Save("Alpha", "P1", new Models.RunSnapshot(0, new[] { 5 }, false, System.TimeSpan.Zero));
+        _runStateService.Save("Alpha", "P1", new Models.RunSnapshot(0, new[] { 5 }, null, false, System.TimeSpan.Zero));
 
         _sut.Rename("Alpha", "Beta");
 
@@ -371,9 +371,9 @@ public class CustomGameServiceTests
     {
         _store.Raw = "Alpha,Beta";
         _profileService.GetProfiles("Alpha").Returns(new List<Profile>());
-        _runStateService.Save("Alpha", "P1", new RunSnapshot(0, new[] { 1 }, false, System.TimeSpan.Zero));
-        _runStateService.Save("Alpha", "P2", new RunSnapshot(0, new[] { 2 }, false, System.TimeSpan.Zero));
-        _runStateService.Save("Beta", "P1", new RunSnapshot(0, new[] { 9 }, false, System.TimeSpan.Zero));
+        _runStateService.Save("Alpha", "P1", new RunSnapshot(0, new[] { 1 }, null, false, System.TimeSpan.Zero));
+        _runStateService.Save("Alpha", "P2", new RunSnapshot(0, new[] { 2 }, null, false, System.TimeSpan.Zero));
+        _runStateService.Save("Beta", "P1", new RunSnapshot(0, new[] { 9 }, null, false, System.TimeSpan.Zero));
 
         _sut.Delete("Alpha");
 

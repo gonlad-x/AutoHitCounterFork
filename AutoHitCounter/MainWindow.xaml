@@ -787,7 +787,7 @@
                                         <TextBlock Grid.Column="4"
                                                    Margin="6,0,4,0"
                                                    Text="{Binding BossKillTimeDisplay}"
-                                                   FontFamily="{StaticResource AppFont}"
+                                                   FontFamily="JetBrains Mono"
                                                    FontSize="{StaticResource FontSizeBody}"
                                                    HorizontalAlignment="Center" VerticalAlignment="Center">
                                             <TextBlock.Style>

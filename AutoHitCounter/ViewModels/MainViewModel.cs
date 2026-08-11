@@ -664,6 +664,7 @@ namespace AutoHitCounter.ViewModels
                 _splitNav.Previous();
             });
             _hotkeyManager.RegisterAction(HotkeyActions.ToggleBossTimer, ToggleBossTimer);
+            _hotkeyManager.RegisterAction(HotkeyActions.ResetBossTimer, ResetBossTimer);
 
             _hotkeyManager.RegisterAction(HotkeyActions.Reset, ResetSplits);
             _hotkeyManager.RegisterAction(HotkeyActions.IncrementHit, IncrementHit);
@@ -680,6 +681,7 @@ namespace AutoHitCounter.ViewModels
         private void OnSplitStateChanged()
         {
             UpdateDistancePb();
+            RefreshPastIndicator();
             OnPropertyChanged(nameof(CurrentSplit));
             OnPropertyChanged(nameof(CurrentSplitNumber));
             OnPropertyChanged(nameof(IsRunComplete));
@@ -744,9 +746,9 @@ namespace AutoHitCounter.ViewModels
             for (var i = cutoff; i < ActiveProfile.Splits.Count; i++)
             {
                 var entry = ActiveProfile.Splits[i];
-                if (entry is not { IsBossTimerEnabled: true, EventId: not null }) continue;
-                if (!bossEntityIds.TryGetValue(entry.EventId.Value, out var expectedEntityId)) continue;
-                if (entityId != expectedEntityId) continue;
+                if (entry is not { EventId: not null }) continue;
+                if (!bossEntityIds.TryGetValue(entry.EventId.Value, out var expectedEntityIds)) continue;
+                if (!expectedEntityIds.Contains(entityId)) continue;
 
                 // Restarting on the latest spawn (rather than keeping the first) is deliberate:
                 // a wipe/retry before the kill flag fires should reset the clock, so the
@@ -785,18 +787,38 @@ namespace AutoHitCounter.ViewModels
                     _bossTimerStartIgtMs = null;
                     _bossTimerIsPaused = true;
                     CurrentSplit.BossKillTimeMs = _bossTimerAccumulatedMs;
+                    SaveRunState();
                 }
                 return;
             }
 
             var entry = GetActiveProfileSplitEntry(CurrentSplit);
-            if (entry is not { IsBossTimerEnabled: true }) return;
+            if (!IsBossTimerEligible(entry)) return;
 
             _bossTimerStartIgtMs = (long)InGameTime.TotalMilliseconds;
             _bossTimerAccumulatedMs = 0;
             _bossTimerIsPaused = false;
             _bossTimerSplit = CurrentSplit;
             CurrentSplit.BossKillTimeMs = null;
+        }
+
+        // Resets the running/paused boss timer for CurrentSplit back to zero without
+        // changing its running/paused state, bound to the ResetBossTimer hotkey -- e.g.
+        // after a wipe, restart the clock immediately rather than toggling pause/resume
+        // twice or waiting for the next healthbar-spawn detection. No-ops if no timer is
+        // currently tracking CurrentSplit.
+        private void ResetBossTimer()
+        {
+            if (!SettingsManager.Default.SKBossTimeTrackersEnabled) return;
+            if (_selectedGame != _orchestrator.ActiveGame) return;
+            if (IsPracticeMode || IsRunComplete || CurrentSplit == null) return;
+            if (_bossTimerSplit != CurrentSplit) return;
+
+            _bossTimerAccumulatedMs = 0;
+            if (!_bossTimerIsPaused) _bossTimerStartIgtMs = (long)InGameTime.TotalMilliseconds;
+            CurrentSplit.BossKillTimeMs = 0;
+            SaveRunState();
+            _overlayServerService.BroadcastState(OverlayMapper.MapFrom(this));
         }
 
         private void StopBossTimer()
@@ -811,14 +833,25 @@ namespace AutoHitCounter.ViewModels
             ClearBossTimerState();
 
             var entry = GetActiveProfileSplitEntry(split);
-            if (entry is not { IsBossTimerEnabled: true }) return;
+            if (!IsBossTimerEligible(entry)) return;
             if (elapsed < 0) return;
 
             split.BossKillTimeMs = elapsed;
+            SaveRunState();
             if (entry.BossKillTimeBestMs.HasValue && entry.BossKillTimeBestMs.Value <= elapsed) return;
 
             entry.BossKillTimeBestMs = elapsed;
             split.BossKillTimeBestMs = elapsed;
+        }
+
+        // A split is boss-timer-eligible once the global setting is on (already checked by
+        // every caller before reaching here) and its EventId has a confirmed boss Entity ID
+        // mapping -- i.e. no more per-split opt-in, the global toggle covers every boss
+        // automatically, including ones added to the profile afterward.
+        private bool IsBossTimerEligible(SplitEntry entry)
+        {
+            if (entry?.EventId is not { } eventId) return false;
+            return _gameModuleFactory.GetBossEntityIdsForGame(_selectedGame.Title).ContainsKey(eventId);
         }
 
         private void ClearBossTimerState()
@@ -926,17 +959,13 @@ namespace AutoHitCounter.ViewModels
             var events = _selectedGame.IsManual
                 ? new Dictionary<uint, string>()
                 : GetAllEventsForGame(_selectedGame.Title);
-            var bossEntityIds = _selectedGame.IsManual
-                ? new Dictionary<uint, uint>()
-                : _gameModuleFactory.GetBossEntityIdsForGame(_selectedGame.Title);
             var vm = new ProfileEditorViewModel(
                 events,
                 _profileService,
                 _selectedGame.GameName,
                 _selectedGame.Title,
                 _activeProfile,
-                _selectedGame.IsManual,
-                bossEntityIds);
+                _selectedGame.IsManual);
 
             _profileEditorWindow = new ProfileEditorWindow { DataContext = vm };
 
@@ -992,7 +1021,6 @@ namespace AutoHitCounter.ViewModels
                     NumOfHits = 0,
                     PersonalBest = split.PersonalBest,
                     Notes = split.Notes,
-                    IsBossTimerEnabled = split.IsBossTimerEnabled,
                     BossKillTimeBestMs = split.BossKillTimeBestMs
                 };
                 vm.PropertyChanged += (_, _) =>
@@ -1095,9 +1123,17 @@ namespace AutoHitCounter.ViewModels
                 Splits[i].IsDistancePb = i == _activeProfile.DistancePb;
         }
 
+        private void RefreshPastIndicator()
+        {
+            var currentIndex = CurrentSplit != null ? Splits.IndexOf(CurrentSplit) : -1;
+            for (int i = 0; i < Splits.Count; i++)
+                Splits[i].IsPast = currentIndex >= 0 && (i < currentIndex || (IsRunComplete && i == currentIndex));
+        }
+
         private void RefreshSplitValues()
         {
             var hits = Splits.Select(s => s.NumOfHits).ToArray();
+            var bossKillTimes = Splits.Select(s => s.BossKillTimeMs).ToArray();
             var currentIndex = CurrentSplit != null ? Splits.IndexOf(CurrentSplit) : -1;
             var selectedIndex = SelectedSplit != null ? Splits.IndexOf(SelectedSplit) : -1;
 
@@ -1105,7 +1141,10 @@ namespace AutoHitCounter.ViewModels
             RefreshDistancePbIndicator();
 
             for (int i = 0; i < Splits.Count && i < hits.Length; i++)
+            {
                 Splits[i].NumOfHits = hits[i];
+                Splits[i].BossKillTimeMs = bossKillTimes[i];
+            }
 
             if (currentIndex >= 0 && currentIndex < Splits.Count)
             {
@@ -1115,6 +1154,8 @@ namespace AutoHitCounter.ViewModels
 
             if (selectedIndex >= 0 && selectedIndex < Splits.Count)
                 SelectedSplit = Splits[selectedIndex];
+
+            RefreshPastIndicator();
         }
 
         private Dictionary<uint, (string Name, int Required, int Hit)> GetActiveEvents()
@@ -1280,6 +1321,7 @@ namespace AutoHitCounter.ViewModels
             OnPropertyChanged(nameof(TotalPb));
             OnPropertyChanged(nameof(TotalDiff));
             RefreshDistancePbIndicator();
+            RefreshPastIndicator();
             _overlayServerService.BroadcastState(OverlayMapper.MapFrom(this));
         }
 
@@ -1332,6 +1374,7 @@ namespace AutoHitCounter.ViewModels
             OnPropertyChanged(nameof(IsRunComplete));
             OnPropertyChanged(nameof(CurrentSplit));
             OnPropertyChanged(nameof(CurrentSplitNumber));
+            RefreshPastIndicator();
             _overlayServerService.BroadcastState(OverlayMapper.MapFrom(this));
             _overlayServerService.BroadcastIgt(InGameTimeFormatted);
         }

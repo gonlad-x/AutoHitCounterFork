@@ -55,7 +55,7 @@ public class GameModuleFactory(
             ? EventLoader.GetEvents(reg.EventResource)
             : new();
 
-    public Dictionary<uint, uint> GetBossEntityIdsForGame(GameTitle title) =>
+    public Dictionary<uint, uint[]> GetBossEntityIdsForGame(GameTitle title) =>
         title == GameTitle.Manual ? new()
         : Registrations.TryGetValue(title, out var reg) && reg.BossEntityIdResource != null
             ? EventLoader.GetEntityIds(reg.BossEntityIdResource)
