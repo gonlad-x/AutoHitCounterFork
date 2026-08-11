@@ -37,6 +37,7 @@ public class RunStateService : IRunStateService
         {
             CurrentSplitIndex = currentSplit != null ? splits.IndexOf(currentSplit) : -1,
             HitCounts = children.Select(s => s.NumOfHits).ToArray(),
+            BossKillTimesMs = children.Select(s => s.BossKillTimeMs).ToArray(),
             IsRunComplete = isRunComplete,
             IgtMilliseconds = (long)inGameTime.TotalMilliseconds
         };
@@ -62,19 +63,22 @@ public class RunStateService : IRunStateService
     {
         var children = splits.Where(s => s.Type == SplitType.Child).ToList();
         var hits = children.Select(s => s.NumOfHits).ToArray();
+        var bossKillTimes = children.Select(s => s.BossKillTimeMs).ToArray();
         var index = currentSplit != null ? splits.IndexOf(currentSplit) : -1;
-        return new RunSnapshot(index, hits, isRunComplete, inGameTime);
+        return new RunSnapshot(index, hits, bossKillTimes, isRunComplete, inGameTime);
     }
 
     public SplitViewModel RestoreSnapshot(IList<SplitViewModel> splits, RunSnapshot snapshot)
     {
         RestoreHits(splits, snapshot.HitCounts);
+        RestoreBossKillTimes(splits, snapshot.BossKillTimesMs);
         return FindSplitToRestore(splits, snapshot.CurrentSplitIndex);
     }
 
     public SplitViewModel RestoreFromSavedRun(IList<SplitViewModel> splits, RunState state)
     {
         RestoreHits(splits, state.HitCounts);
+        RestoreBossKillTimes(splits, state.BossKillTimesMs);
         return FindSplitToRestore(splits, state.CurrentSplitIndex);
     }
 
@@ -124,6 +128,15 @@ public class RunStateService : IRunStateService
         var children = splits.Where(s => s.Type == SplitType.Child).ToList();
         for (int i = 0; i < children.Count && i < hitCounts.Length; i++)
             children[i].NumOfHits = hitCounts[i];
+    }
+
+    // bossKillTimesMs can be null when restoring a RunState saved before this field existed.
+    private static void RestoreBossKillTimes(IList<SplitViewModel> splits, long?[] bossKillTimesMs)
+    {
+        if (bossKillTimesMs == null) return;
+        var children = splits.Where(s => s.Type == SplitType.Child).ToList();
+        for (int i = 0; i < children.Count && i < bossKillTimesMs.Length; i++)
+            children[i].BossKillTimeMs = bossKillTimesMs[i];
     }
 
     private static SplitViewModel FindSplitToRestore(IList<SplitViewModel> splits, int currentSplitIndex)

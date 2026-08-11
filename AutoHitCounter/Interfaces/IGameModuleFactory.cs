@@ -10,6 +10,6 @@ public interface IGameModuleFactory
 {
     List<Game> GetRegisteredGames();
     Dictionary<uint, string> GetEventsForGame(GameTitle title);
-    Dictionary<uint, uint> GetBossEntityIdsForGame(GameTitle title);
+    Dictionary<uint, uint[]> GetBossEntityIdsForGame(GameTitle title);
     IGameModule CreateModule(Game game, Dictionary<uint, (string Name, int Required, int Hit)> events, IHitRulesProvider rules);
 }

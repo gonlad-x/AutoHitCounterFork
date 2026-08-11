@@ -30,11 +30,11 @@ public static class OverlayMapper
                 Diff = s.Diff,
                 IsCurrent = s.IsCurrent,
                 IsParent = s.IsParent,
-                BossTime = FormatBossTime(s.BossKillTimeMs)
+                BossTime = FormatBossTime(s.BossKillTimeMs, s.IsPast)
             }).ToList()
         };
     }
 
-    private static string FormatBossTime(long? ms)
-        => ms.HasValue ? TimeSpan.FromMilliseconds(ms.Value).ToString(@"m\:ss") : "";
+    private static string FormatBossTime(long? ms, bool isPast)
+        => ms.HasValue ? TimeSpan.FromMilliseconds(ms.Value).ToString(@"m\:ss") : isPast ? "-" : "";
 }

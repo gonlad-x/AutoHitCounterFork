@@ -99,7 +99,7 @@ public class RunStateServiceTests
         var a = Child();
         var b = Child();
         var splits = new List<SplitViewModel> { a, b };
-        var snapshot = new RunSnapshot(0, new[] { 3, 7 }, false, TimeSpan.Zero);
+        var snapshot = new RunSnapshot(0, new[] { 3, 7 }, null, false, TimeSpan.Zero);
 
         _sut.RestoreSnapshot(splits, snapshot);
 
@@ -112,7 +112,7 @@ public class RunStateServiceTests
     {
         var child = Child();
         var splits = new List<SplitViewModel> { Parent(), child };
-        var snapshot = new RunSnapshot(1, new[] { 5 }, false, TimeSpan.Zero);
+        var snapshot = new RunSnapshot(1, new[] { 5 }, null, false, TimeSpan.Zero);
 
         _sut.RestoreSnapshot(splits, snapshot);
 
@@ -125,7 +125,7 @@ public class RunStateServiceTests
         var first = Child("First");
         var second = Child("Second");
         var splits = new List<SplitViewModel> { first, second };
-        var snapshot = new RunSnapshot(1, new[] { 0, 0 }, false, TimeSpan.Zero);
+        var snapshot = new RunSnapshot(1, new[] { 0, 0 }, null, false, TimeSpan.Zero);
 
         var result = _sut.RestoreSnapshot(splits, snapshot);
 
@@ -137,7 +137,7 @@ public class RunStateServiceTests
     {
         var child = Child();
         var splits = new List<SplitViewModel> { child };
-        var snapshot = new RunSnapshot(-1, new[] { 0 }, false, TimeSpan.Zero);
+        var snapshot = new RunSnapshot(-1, new[] { 0 }, null, false, TimeSpan.Zero);
 
         var result = _sut.RestoreSnapshot(splits, snapshot);
 
@@ -149,7 +149,7 @@ public class RunStateServiceTests
     {
         var child = Child();
         var splits = new List<SplitViewModel> { child };
-        var snapshot = new RunSnapshot(99, new[] { 0 }, false, TimeSpan.Zero);
+        var snapshot = new RunSnapshot(99, new[] { 0 }, null, false, TimeSpan.Zero);
 
         var result = _sut.RestoreSnapshot(splits, snapshot);
 
@@ -161,7 +161,7 @@ public class RunStateServiceTests
     {
         var child = Child();
         var splits = new List<SplitViewModel> { child };
-        var snapshot = new RunSnapshot(0, new[] { 1, 2, 3 }, false, TimeSpan.Zero);
+        var snapshot = new RunSnapshot(0, new[] { 1, 2, 3 }, null, false, TimeSpan.Zero);
 
         _sut.RestoreSnapshot(splits, snapshot);
 
@@ -174,7 +174,7 @@ public class RunStateServiceTests
         var a = Child();
         var b = Child();
         var splits = new List<SplitViewModel> { a, b };
-        var snapshot = new RunSnapshot(0, new[] { 4 }, false, TimeSpan.Zero);
+        var snapshot = new RunSnapshot(0, new[] { 4 }, null, false, TimeSpan.Zero);
 
         _sut.RestoreSnapshot(splits, snapshot);
 
@@ -189,7 +189,7 @@ public class RunStateServiceTests
     [Fact]
     public void TryGet_AfterSave_ReturnsSnapshot()
     {
-        var snapshot = new RunSnapshot(0, new[] { 1 }, false, TimeSpan.Zero);
+        var snapshot = new RunSnapshot(0, new[] { 1 }, null, false, TimeSpan.Zero);
 
         _sut.Save("DS3", "Profile1", snapshot);
 
@@ -206,7 +206,7 @@ public class RunStateServiceTests
     [Fact]
     public void Invalidate_RemovesSnapshot()
     {
-        var snapshot = new RunSnapshot(0, new[] { 1 }, false, TimeSpan.Zero);
+        var snapshot = new RunSnapshot(0, new[] { 1 }, null, false, TimeSpan.Zero);
         _sut.Save("DS3", "Profile1", snapshot);
 
         _sut.Invalidate("DS3", "Profile1");
@@ -229,7 +229,7 @@ public class RunStateServiceTests
     [Fact]
     public void InvalidateStale_RemovesEntriesNotInValidSet()
     {
-        var snapshot = new RunSnapshot(0, Array.Empty<int>(), false, TimeSpan.Zero);
+        var snapshot = new RunSnapshot(0, Array.Empty<int>(), null, false, TimeSpan.Zero);
         _sut.Save("DS3", "Keep", snapshot);
         _sut.Save("DS3", "Stale", snapshot);
 
@@ -242,7 +242,7 @@ public class RunStateServiceTests
     [Fact]
     public void InvalidateStale_DoesNotAffectOtherGames()
     {
-        var snapshot = new RunSnapshot(0, Array.Empty<int>(), false, TimeSpan.Zero);
+        var snapshot = new RunSnapshot(0, Array.Empty<int>(), null, false, TimeSpan.Zero);
         _sut.Save("DS3", "Profile1", snapshot);
         _sut.Save("ER", "Profile1", snapshot);
 
@@ -254,7 +254,7 @@ public class RunStateServiceTests
     [Fact]
     public void RenameGame_RekeysAllEntriesForOldName()
     {
-        var snapshot = new RunSnapshot(0, Array.Empty<int>(), false, TimeSpan.Zero);
+        var snapshot = new RunSnapshot(0, Array.Empty<int>(), null, false, TimeSpan.Zero);
         _sut.Save("OldGame", "Profile1", snapshot);
         _sut.Save("OldGame", "Profile2", snapshot);
 
@@ -269,7 +269,7 @@ public class RunStateServiceTests
     [Fact]
     public void RenameGame_DoesNotAffectOtherGames()
     {
-        var snapshot = new RunSnapshot(0, Array.Empty<int>(), false, TimeSpan.Zero);
+        var snapshot = new RunSnapshot(0, Array.Empty<int>(), null, false, TimeSpan.Zero);
         _sut.Save("OldGame", "Profile1", snapshot);
         _sut.Save("OtherGame", "Profile1", snapshot);
 

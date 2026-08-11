@@ -13,4 +13,5 @@ public enum HotkeyActions
     StartTimer,
     PauseTimer,
     ToggleBossTimer,
+    ResetBossTimer,
 }
