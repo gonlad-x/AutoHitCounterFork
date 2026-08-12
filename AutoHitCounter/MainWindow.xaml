@@ -1024,6 +1024,8 @@
                                         Command="{Binding SetPbCommand}" />
                                 <Button Content="Reset" Margin="4,0"
                                         Command="{Binding ResetCommand}" />
+                                <Button Content="Export Run Data" Margin="4,0"
+                                        Command="{Binding ExportRunDataCommand}" />
                             </StackPanel>
                         </StackPanel>
 

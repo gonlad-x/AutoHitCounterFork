@@ -6,3 +6,5 @@ riderModule.iml
 .vs/
 .vscode/
 AutoHitCounter/FodyWeavers.xsd
+resources/
+AutoHitCounter.Tests/
