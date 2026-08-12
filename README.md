@@ -15,6 +15,7 @@ This tool offers plenty of features such as:
 * Automated Splitting.
 * Split Notes.
 * In-Game Time Tracking.
+* In-Game Automatic Boss kill Time Tracking (Sekiro only for now)
 * Default Profiles for every game.
 * OBS Overlay with a settings window to make editing/importing and exporting the overlay easier.
 * Event Logging.
