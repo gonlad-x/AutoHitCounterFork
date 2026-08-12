@@ -3,9 +3,13 @@
 using System;
 using System.Collections.Generic;
 using System.Collections.ObjectModel;
+using System.Globalization;
+using System.IO;
 using System.Linq;
+using System.Text;
 using System.Windows;
 using System.Windows.Media;
+using Microsoft.Win32;
 using AutoHitCounter.Core;
 using AutoHitCounter.Enums;
 using AutoHitCounter.Interfaces;
@@ -118,6 +122,8 @@ namespace AutoHitCounter.ViewModels
         public DelegateCommand ResetCommand { get; set; }
 
         public DelegateCommand SetPbCommand { get; set; }
+
+        public DelegateCommand ExportRunDataCommand { get; set; }
 
         public DelegateCommand SaveNotesCommand { get; set; }
 
@@ -571,6 +577,7 @@ namespace AutoHitCounter.ViewModels
             DecrementHitCommand = new DelegateCommand(DecrementHit);
             ResetCommand = new DelegateCommand(ResetSplits);
             SetPbCommand = new DelegateCommand(SetPb);
+            ExportRunDataCommand = new DelegateCommand(ExportRunData);
             SetDistancePbCommand = new DelegateCommand(SetDistancePb, CanSetDistancePb);
 
             ClearAllNotesCommand = new DelegateCommand(() =>
@@ -1410,6 +1417,54 @@ namespace AutoHitCounter.ViewModels
 
             _profileService.SaveProfile(ActiveProfile);
             _overlayServerService.BroadcastState(OverlayMapper.MapFrom(this));
+        }
+
+        private void ExportRunData()
+        {
+            if (ActiveProfile == null) return;
+
+            var invalidChars = Path.GetInvalidFileNameChars();
+            var safeName = new string(ActiveProfile.Name.Select(c => invalidChars.Contains(c) ? '_' : c).ToArray());
+
+            var dialog = new SaveFileDialog
+            {
+                Filter = "CSV files (*.csv)|*.csv",
+                DefaultExt = ".csv",
+                FileName = $"{safeName} - Run Data - Attempt {AttemptCount}",
+                InitialDirectory = SettingsManager.Default.LastImportExportPath
+            };
+
+            if (dialog.ShowDialog() != true) return;
+
+            SettingsManager.Default.LastImportExportPath = Path.GetDirectoryName(dialog.FileName);
+            SettingsManager.Default.Save();
+
+            var sb = new StringBuilder();
+            sb.AppendLine("Split,Hits,PB,Time");
+
+            foreach (var split in Splits.Where(s => s.Type == SplitType.Child))
+            {
+                sb.AppendLine(string.Join(",",
+                    CsvEscape(split.Name),
+                    split.NumOfHits.ToString(CultureInfo.InvariantCulture),
+                    split.PersonalBest.ToString(CultureInfo.InvariantCulture),
+                    CsvEscape(split.BossKillTimeDisplay)));
+            }
+
+            sb.AppendLine(string.Join(",",
+                "TOTAL",
+                TotalHits.ToString(CultureInfo.InvariantCulture),
+                TotalPb.ToString(CultureInfo.InvariantCulture),
+                CsvEscape(InGameTimeFormatted)));
+
+            File.WriteAllText(dialog.FileName, sb.ToString());
+        }
+
+        private static string CsvEscape(string field)
+        {
+            if (string.IsNullOrEmpty(field)) return "";
+            if (field.IndexOfAny(new[] { ',', '"', '\n', '\r' }) < 0) return field;
+            return $"\"{field.Replace("\"", "\"\"")}\"";
         }
 
         public void CommitPbEdit(SplitViewModel split, string value)
