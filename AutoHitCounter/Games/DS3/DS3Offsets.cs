@@ -112,6 +112,7 @@ public static class DS3Offsets
         public static nint SetEvent;
         public static nint StartNewGame;
         public static nint IsOnlineHook;
+        public static nint DisplayBossHealthBar;
     }
 
     public static class Functions
@@ -482,6 +483,20 @@ public static class DS3Offsets
             Version1_13_0_0 or Version1_14_0_0 or Version1_15_0_0 => 0x4C5060,
             Version1_15_1_0 => 0x4C5E30,
             Version1_15_2_0 => 0x4C5E20,
+            _ => 0
+        };
+
+        // Confirmed via Ghidra 2026-08-13, ShowBossHealthBarForChr-equivalent
+        // (SPRJ side), called from DispatchEvent2003 case 0xb (EMEVD (2003,11),
+        // SetBossHealthBarState/EnableBossHealthBar). Entity ID arrives in EDX.
+        // Only resolved for 1.15.2 -- other versions fall back to AOB scanning
+        // only if the exe's FileVersion doesn't match any known DS3Version at
+        // all, so this hook simply won't install on other tracked versions
+        // until their offsets are confirmed too (same situation as Sekiro's
+        // own DisplayBossHealthBar).
+        Hooks.DisplayBossHealthBar = moduleBase + Version switch
+        {
+            Version1_15_2_0 => 0x475470,
             _ => 0
         };
 

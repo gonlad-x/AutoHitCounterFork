@@ -28,6 +28,7 @@ public class DS3Module : IGameModule, IDisposable, IVersionedGameModule
     private DS3SettingsService _settingsService;
     private EventLogReader _eventLogReader;
     private DS3RunStartService _runStartService;
+    private DS3BossHealthBarService _bossHealthBarService;
 
     public event Action OnHit;
     public event Action OnEventSet;
@@ -67,6 +68,7 @@ public class DS3Module : IGameModule, IDisposable, IVersionedGameModule
             Base + EventLogWriteIdx,
             Base + EventLogBuffer);
         _runStartService = new DS3RunStartService(_memoryService, _hookManager);
+        _bossHealthBarService = new DS3BossHealthBarService(_memoryService, _hookManager);
         _eventLogReader.EntriesReceived += entries => OnEventLogEntriesReceived?.Invoke(entries);
 
         ApplySettings(onlyEnabled: true);
@@ -74,7 +76,7 @@ public class DS3Module : IGameModule, IDisposable, IVersionedGameModule
         _eventService.InstallHook();
         _hitService.InstallHooks();
         _runStartService.InstallHook();
-
+        _bossHealthBarService.InstallHook();
 
         _tickService.RegisterGameTick(Tick);
 
@@ -115,6 +117,11 @@ public class DS3Module : IGameModule, IDisposable, IVersionedGameModule
         if (_eventService.ShouldSplit())
         {
             OnEventSet?.Invoke();
+        }
+
+        if (_bossHealthBarService.TryGetLatestSpawn(out var entityId))
+        {
+            OnBossHealthBarSpawn?.Invoke(entityId);
         }
 
         _eventLogReader.Poll();
