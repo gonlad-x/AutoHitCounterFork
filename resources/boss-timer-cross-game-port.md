@@ -186,3 +186,39 @@ Mirrors the Sekiro build shape:
   no changes expected, already game-agnostic)
 - `AutoHitCounter/Views/Controls/SettingsTab.xaml`, `SettingsViewModel.cs`
   (`SKBossTimeTrackersEnabled` generalization)
+
+---
+
+Update (post ER/DS3 porting)
+
+● The mechanical porting is done. Summary of everything changed:
+
+  DS3 (Games/DS3/):
+  - DS3Offsets.cs — Hooks.DisplayBossHealthBar resolved for Version1_15_2_0 (0x475470)
+  - DS3CustomCodeOffsets.cs — new ring-buffer block (0x4000/0x4020/0x4100)
+  - DS3BossHealthBarService.cs — new file, install hook + poll ring buffer
+  - DS3Module.cs — service wired into Initialize()/Tick(), OnBossHealthBarSpawn now actually fires
+
+  Elden Ring (Games/ER/):
+  - EldenRingOffsets.cs — Hooks.DisplayBossHealthBar resolved for both Version2_6_1 (0x5F4690) and Version2_6_2
+  (0x5F45B0)
+  - EldenRingCustomCodeOffsets.cs — same ring-buffer block
+  - EldenRingBossHealthBarService.cs — new file, shellcode reads ECX instead of EDX, preserves 48 89 5C 24 08 instead of
+  ...24 10
+  - EldenRingModule.cs — wired the same way
+
+  Shared:
+  - Enums/AsmScript.cs + Resources.resx — DS3BossHealthBarLog (byte-identical to Sekiro's) and EldenRingBossHealthBarLog
+  (register-adapted) shellcode entries, plus DS3BossEntityIds/ERBossEntityIds CSV data entries (32 and 234 rows, both
+  fully EMEVD-verified from earlier this session)
+  - GameModuleFactory.cs — both games now pass their entity-ID resource into GameRegistration
+  - AutoHitCounter.csproj — <Compile Include> entries for the two new service files (classic project, no auto-globbing)
+  - SettingsTab.xaml — "Boss Time Trackers" checkbox pulled out of the Sekiro-only panel into its own multi-trigger
+  block, now visible for Sekiro/DS3/EldenRing, still bound to the same SKBossTimeTrackersEnabled setting (kept the name
+  as-is deliberately, so existing Sekiro users' saved preference doesn't reset)
+
+  Worth flagging since I can't do this part myself: this compiles clean but hasn't been tested in-game. Per the family
+  skill's own standing rule for this project, that verification needs you — attach to a live DS3 1.15.2 or ER
+  1.16.1/1.16.2 session, tick the checkbox, and check a boss with a known multi-entity fight (DS3: Nameless King or Twin
+  Princes; ER: Radagon & Elden Beast or Fia's Champions) to confirm the timer starts/aggregates correctly across
+  phases.

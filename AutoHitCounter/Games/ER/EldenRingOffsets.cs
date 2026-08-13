@@ -126,6 +126,7 @@ public static class EldenRingOffsets
         public static nint ClearThrowState;
         public static nint SetEvent;
         public static nint StartNewGame;
+        public static nint DisplayBossHealthBar;
     }
 
     public static class Functions
@@ -562,6 +563,21 @@ public static class EldenRingOffsets
             Version2_4_0 or Version2_5_0 => 0x5F9B50,
             Version2_6_0 or Version2_6_1 => 0x5F9CD0,
             Version2_6_2 => 0x5F9BF0,
+            _ => 0
+        };
+
+        // Confirmed via Ghidra 2026-08-13, ShowBossHealthBarForChr, called from
+        // Event2003 case 0xb (EMEVD (2003,11), SetBossHealthBarState/
+        // EnableBossHealthBar). Entity ID arrives in ECX (1st arg, unlike DS3/
+        // Sekiro's EDX -- no leading manager/this-pointer arg on this function).
+        // Only resolved for 1.16.1/1.16.2 -- other versions fall back to AOB
+        // scanning only if the exe's FileVersion doesn't match any known
+        // EldenRingVersion at all, so this hook simply won't install on other
+        // tracked versions until their offsets are confirmed too.
+        Hooks.DisplayBossHealthBar = moduleBase + Version switch
+        {
+            Version2_6_1 => 0x5F4690,
+            Version2_6_2 => 0x5F45B0,
             _ => 0
         };
 

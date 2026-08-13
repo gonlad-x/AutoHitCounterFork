@@ -101,6 +101,7 @@
                             <CheckBox Content="Stutter Fix" IsChecked="{Binding ERStutterFix}" Margin="0, 0, 5, 0" />
                             <CheckBox Content="Disable Achievements" IsChecked="{Binding ERDisableAchievements}"
                                       Margin="0, 0, 5, 0" />
+                            <CheckBox Content="Boss Time Trackers" IsChecked="{Binding SKBossTimeTrackersEnabled}" Margin="0, 0, 5, 0" />
                         </StackPanel>
                     </StackPanel>
 
@@ -120,6 +121,7 @@
                             <CheckBox Content="No Logo" IsChecked="{Binding DS3NoLogo}" Margin="0, 0, 5, 0" />
                             <CheckBox Content="Stutter Fix" IsChecked="{Binding DS3StutterFix}" Margin="0, 0, 5, 0" />
                             <CheckBox Content="No Online Invasions" IsChecked="{Binding DS3NoOnlineInvasions}" Margin="0, 0, 5, 0" />
+                            <CheckBox Content="Boss Time Trackers" IsChecked="{Binding SKBossTimeTrackersEnabled}" Margin="0, 0, 5, 0" />
                         </StackPanel>
                     </StackPanel>
 

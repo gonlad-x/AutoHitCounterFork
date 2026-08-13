@@ -24,7 +24,8 @@ public class EldenRingModule : IGameModule, IDisposable, IVersionedGameModule
     private EldenRingSettingsService _settingsService;
     private EventLogReader _eventLogReader;
     private IRunStartService _runStartService;
-    
+    private EldenRingBossHealthBarService _bossHealthBarService;
+
     public string GameVersion => EldenRingOffsets.IsAobFallback ? "Unknown Patch" : EldenRingOffsets.Version.GetDescription();
 
     private DateTime? _lastHit;
@@ -68,14 +69,16 @@ public class EldenRingModule : IGameModule, IDisposable, IVersionedGameModule
             Base + EventLogWriteIdx,
             Base + EventLogBuffer);
         _runStartService = new EldenRingRunStartService(_memoryService, _hookManager);
+        _bossHealthBarService = new EldenRingBossHealthBarService(_memoryService, _hookManager);
         _eventLogReader.EntriesReceived += entries => OnEventLogEntriesReceived?.Invoke(entries);
 
         ApplySettings(onlyEnabled: true);
-        
+
         _eventService.InstallHook();
         _hitService.InstallHooks();
         _runStartService.InstallHook();
-        
+        _bossHealthBarService.InstallHook();
+
         _tickService.RegisterGameTick(Tick);
         
         OnVersionDetected?.Invoke();
@@ -114,6 +117,11 @@ public class EldenRingModule : IGameModule, IDisposable, IVersionedGameModule
         if (_eventService.ShouldSplit())
         {
             OnEventSet?.Invoke();
+        }
+
+        if (_bossHealthBarService.TryGetLatestSpawn(out var entityId))
+        {
+            OnBossHealthBarSpawn?.Invoke(entityId);
         }
 
         _eventLogReader.Poll();

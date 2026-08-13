@@ -35,9 +35,9 @@ public class GameModuleFactory(
     {
         [GameTitle.DarkSoulsRemastered] = new("darksoulsremastered", "DSREvents", true),
         [GameTitle.DarkSouls2]          = new("darksoulsii", "DS2Events", true),
-        [GameTitle.DarkSouls3]          = new("darksoulsiii", "DS3Events", true),
+        [GameTitle.DarkSouls3]          = new("darksoulsiii", "DS3Events", true, "DS3BossEntityIds"),
         [GameTitle.Sekiro]              = new("sekiro", "SKEvents", true, "SKBossEntityIds"),
-        [GameTitle.EldenRing]           = new("eldenring", "EldenRingEvents", true),
+        [GameTitle.EldenRing]           = new("eldenring", "EldenRingEvents", true, "ERBossEntityIds"),
     };
 
     public List<Game> GetRegisteredGames() =>
