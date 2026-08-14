@@ -101,7 +101,7 @@
                             <CheckBox Content="Stutter Fix" IsChecked="{Binding ERStutterFix}" Margin="0, 0, 5, 0" />
                             <CheckBox Content="Disable Achievements" IsChecked="{Binding ERDisableAchievements}"
                                       Margin="0, 0, 5, 0" />
-                            <CheckBox Content="Boss Time Trackers" IsChecked="{Binding SKBossTimeTrackersEnabled}" Margin="0, 0, 5, 0" />
+                            <CheckBox Content="Boss Time Trackers" IsChecked="{Binding ERBossTimeTrackersEnabled}" Margin="0, 0, 5, 0" />
                         </StackPanel>
                     </StackPanel>
 
@@ -121,7 +121,7 @@
                             <CheckBox Content="No Logo" IsChecked="{Binding DS3NoLogo}" Margin="0, 0, 5, 0" />
                             <CheckBox Content="Stutter Fix" IsChecked="{Binding DS3StutterFix}" Margin="0, 0, 5, 0" />
                             <CheckBox Content="No Online Invasions" IsChecked="{Binding DS3NoOnlineInvasions}" Margin="0, 0, 5, 0" />
-                            <CheckBox Content="Boss Time Trackers" IsChecked="{Binding SKBossTimeTrackersEnabled}" Margin="0, 0, 5, 0" />
+                            <CheckBox Content="Boss Time Trackers" IsChecked="{Binding DS3BossTimeTrackersEnabled}" Margin="0, 0, 5, 0" />
                         </StackPanel>
                     </StackPanel>
 
@@ -161,7 +161,24 @@
                             <CheckBox Content="Skip Credits" IsChecked="{Binding DS2SkipCredits}" Margin="0, 0, 5, 0" />
                             <CheckBox Content="Disable Double Click" IsChecked="{Binding DS2DisableDoubleClick}"
                                       Margin="0, 0, 5, 0" />
-                            <CheckBox Content="Boss Time Trackers" IsChecked="{Binding SKBossTimeTrackersEnabled}" Margin="0, 0, 5, 0" />
+                            <CheckBox Content="Boss Time Trackers" IsChecked="{Binding DS2BossTimeTrackersEnabled}" Margin="0, 0, 5, 0" />
+                        </StackPanel>
+                    </StackPanel>
+
+                    <StackPanel Margin="0,0,0,0">
+                        <StackPanel.Style>
+                            <Style TargetType="StackPanel">
+                                <Setter Property="Visibility" Value="Collapsed" />
+                                <Style.Triggers>
+                                    <DataTrigger Binding="{Binding SelectedSettingsGame}"
+                                                 Value="{x:Static enums:GameTitle.DarkSoulsRemastered}">
+                                        <Setter Property="Visibility" Value="Visible" />
+                                    </DataTrigger>
+                                </Style.Triggers>
+                            </Style>
+                        </StackPanel.Style>
+                        <StackPanel Orientation="Horizontal">
+                            <CheckBox Content="Boss Time Trackers" IsChecked="{Binding DSRBossTimeTrackersEnabled}" Margin="0, 0, 5, 0" />
                         </StackPanel>
                     </StackPanel>
                 </StackPanel>

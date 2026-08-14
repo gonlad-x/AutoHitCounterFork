@@ -739,7 +739,7 @@ namespace AutoHitCounter.ViewModels
 
         private void HandleBossHealthBarSpawn(uint entityId)
         {
-            if (!SettingsManager.Default.SKBossTimeTrackersEnabled) return;
+            if (!IsBossTimeTrackersEnabled(_selectedGame)) return;
             if (_selectedGame != _orchestrator.ActiveGame) return;
             if (IsPracticeMode || IsRunComplete || ActiveProfile == null) return;
 
@@ -792,7 +792,7 @@ namespace AutoHitCounter.ViewModels
         // never auto-resetting on a repeat signal).
         private void HandleBossGaugeActivated()
         {
-            if (!SettingsManager.Default.SKBossTimeTrackersEnabled) return;
+            if (!IsBossTimeTrackersEnabled(_selectedGame)) return;
             if (_selectedGame != _orchestrator.ActiveGame) return;
             if (IsPracticeMode || IsRunComplete || CurrentSplit == null) return;
 
@@ -816,7 +816,7 @@ namespace AutoHitCounter.ViewModels
         // the fight isn't over, so this deliberately doesn't touch BossKillTimeBestMs.
         private void ToggleBossTimer()
         {
-            if (!SettingsManager.Default.SKBossTimeTrackersEnabled) return;
+            if (!IsBossTimeTrackersEnabled(_selectedGame)) return;
             if (_selectedGame != _orchestrator.ActiveGame) return;
             if (IsPracticeMode || IsRunComplete || CurrentSplit == null) return;
 
@@ -860,7 +860,7 @@ namespace AutoHitCounter.ViewModels
         // path) starts it running again from here.
         private void ResetBossTimer()
         {
-            if (!SettingsManager.Default.SKBossTimeTrackersEnabled) return;
+            if (!IsBossTimeTrackersEnabled(_selectedGame)) return;
             if (_selectedGame != _orchestrator.ActiveGame) return;
             if (IsPracticeMode || IsRunComplete || CurrentSplit == null) return;
 
@@ -898,6 +898,24 @@ namespace AutoHitCounter.ViewModels
             entry.BossKillTimeBestMs = elapsed;
             split.BossKillTimeBestMs = elapsed;
         }
+
+        // Boss Time Trackers is a real per-game setting now (2026-08-14) -- each game has
+        // its own SettingsManager flag/checkbox, so unchecking one game's box no longer
+        // disables the feature for the other four. This only resolves which flag to read;
+        // for the hook-based games (DS3/Sekiro/ER) the native hook is still installed
+        // unconditionally at attach time regardless of this setting -- it just gates
+        // whether MainViewModel acts on what the hook captures, same as before this
+        // change. Making "unchecked" mean the hook is genuinely not installed/removed
+        // live would need its own follow-up (see boss-timer.md resources doc).
+        private bool IsBossTimeTrackersEnabled(Game game) => game?.Title switch
+        {
+            GameTitle.Sekiro => SettingsManager.Default.SKBossTimeTrackersEnabled,
+            GameTitle.DarkSouls3 => SettingsManager.Default.DS3BossTimeTrackersEnabled,
+            GameTitle.EldenRing => SettingsManager.Default.ERBossTimeTrackersEnabled,
+            GameTitle.DarkSoulsRemastered => SettingsManager.Default.DSRBossTimeTrackersEnabled,
+            GameTitle.DarkSouls2 => SettingsManager.Default.DS2BossTimeTrackersEnabled,
+            _ => false
+        };
 
         // A split is boss-timer-eligible once the global setting is on (already checked by
         // every caller before reaching here) and its EventId has a confirmed boss Entity ID
