@@ -80,6 +80,61 @@ public static class EldenRingOffsets
                 or Version1_4_0 or Version1_4_1 or Version1_5_0 or Version1_6_0 => 0x18468,
             _ => 0x1E508,
         };
+
+        // Same values TarnishedTool already resolves for this pool (its own
+        // ChrInsService.ChrInsByHandle -- a pure-read Handle -> ChrIns* resolver,
+        // no native call -- already relies on these). Confirmed via Ghidra
+        // 2026-08-14 while mapping the poll-based boss-gauge feature: a pool of
+        // ChrSet* (8-byte stride), indexed by the top 8 bits of a FieldInsHandle's
+        // entityHandle; each ChrSet's own +0x18 points to a 16-byte-stride entries
+        // array indexed by the low 20 bits.
+        public static int ChrSetPool => Version switch
+        {
+            Version1_2_0 or Version1_2_1 or Version1_2_2 or Version1_2_3 or Version1_3_0 or Version1_3_1
+                or Version1_3_2
+                or Version1_4_0
+                or Version1_4_1 or Version1_5_0 or Version1_6_0 => 0x18038,
+            _ => 0x1DED8,
+        };
+
+        public const int ChrSetEntries = 0x18;
+
+        public static class ChrIns
+        {
+            // Confirmed via Ghidra 2026-08-14 -- the real EMEVD-style entity ID,
+            // matches ERBossEntityIds.csv directly.
+            public static int EntityId => Version switch
+            {
+                Version1_2_0 or Version1_2_1 or Version1_2_2 or Version1_2_3 or Version1_3_0 or Version1_3_1
+                    or Version1_3_2
+                    or Version1_4_0 or Version1_4_1 or Version1_5_0 or Version1_6_0 or Version1_7_0 => 0x1E4,
+                _ => 0x1E8,
+            };
+        }
+    }
+
+    // CSFeManImp->bossHealthDisplays[0..2], found via Ghidra 2026-08-14 -- see
+    // boss-entity-ids-data-mining.md for the full session writeup (real RTTI
+    // struct names throughout: BossHealthDisplayEntry, FieldInsHandle, BlockId --
+    // no scalar-search guessing needed, unlike DS3's session). Each slot is
+    // fmgId(+0x0)/fieldInsHandle.entityHandle(+0x8)/damageTaken(+0x10), 0x20-byte
+    // stride, 3 slots -- confirmed against CS::CSFeManImp::CSFeManImp's own
+    // constructor, which zero-inits every slot's entityHandle/fmgId to -1 (and
+    // fieldInsHandle's blockId sub-bytes to 0xFF) -- same "-1 = inactive" sentinel
+    // DS3/DSR use. fieldInsHandle.blockId is NOT needed for resolution -- ER's
+    // own ChrInsByHandle (see WorldChrMan.ChrSetPool above) only ever uses the
+    // plain entityHandle int, confirmed both by decompiling CS::CSFeManImp's
+    // constructor and by TarnishedTool's own working ChrInsService.cs.
+    public static class CSFeMan
+    {
+        public static nint Base;
+
+        public const int BossHealthDisplaySlotBase = 0x5BF0;
+        public const int BossHealthDisplayStride = 0x20;
+        public const int BossHealthDisplaySlotCount = 3;
+
+        public const int BossHealthDisplayFmgId = 0x0;
+        public const int BossHealthDisplayEntityHandle = 0x8;
     }
 
     public static class GameDataMan
@@ -170,6 +225,16 @@ public static class EldenRingOffsets
             Version2_2_0 or Version2_4_0 or Version2_5_0
                 or Version2_6_0 or Version2_6_1 or Version2_6_2 => 0x3D65F88,
             Version2_2_3 or Version2_3_0 => 0x3D65FA8,
+            _ => 0
+        };
+
+        // Confirmed via Ghidra 2026-08-14 (GLOBAL_CSFeMan, CS::CSFeManImp). Only
+        // resolved for 2_6_2 (real patch 1.16.2) -- same single-version situation
+        // as Hooks.DisplayBossHealthBar below; other versions simply won't have
+        // the poll-based boss-gauge feature until separately RE'd.
+        CSFeMan.Base = moduleBase + Version switch
+        {
+            Version2_6_2 => 0x3D6B880,
             _ => 0
         };
 
@@ -804,6 +869,7 @@ public static class EldenRingOffsets
         _printBaseAddr = moduleBase;
         Console.WriteLine("--- Base Pointers ---");
         PrintOffset("WorldChrMan", WorldChrMan.Base);
+        PrintOffset("CSFeMan", CSFeMan.Base);
         PrintOffset("GameDataMan", GameDataMan.Base);
         PrintOffset("UserInputManager", UserInputManager.Base);
         PrintOffset("CSTrophy", CSTrophy.Base);

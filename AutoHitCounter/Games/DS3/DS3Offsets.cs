@@ -67,6 +67,12 @@ public static class DS3Offsets
 
         public const int PlayerIns = 0x80;
 
+        // Array of WorldBlockChr* (8-byte stride), one per loaded map block. Found
+        // via Ghidra 2026-08-14 while mapping the poll-based boss-gauge feature's
+        // FieldInsSelector -> ChrIns resolution (FUN_1408d9b30's own struct-walk,
+        // replicated here as pure reads rather than calling the native function --
+        // see boss-entity-ids-data-mining.md for the full RE writeup).
+        public const int WorldBlockChr0 = 0x518;
 
         public static class ChrIns
         {
@@ -76,7 +82,56 @@ public static class DS3Offsets
                 Version1_12_0_0 => 0x1F88,
                 _ => 0x1F90
             };
+
+            // Confirmed via Ghidra 2026-08-14 -- the real EMEVD-style entity ID,
+            // matches DS3BossEntityIds.csv directly.
+            public const int EventId = 0x1A1C;
         }
+    }
+
+    // Per WorldBlockChr instance (WorldChrMan.WorldBlockChr0[i]). Found via Ghidra
+    // 2026-08-14 (FUN_1408d9b30/FUN_14089ff50): +0x0 is the loaded-count, +0x8
+    // points to an array of 0x38-byte entries whose first 8 bytes are a ChrIns*.
+    public static class WorldBlockChr
+    {
+        public const int Count = 0x0;
+        public const int Entries = 0x8;
+        public const int EntryStride = 0x38;
+    }
+
+    // MenuMan->BossGauge[0..2], found via Ghidra 2026-08-14 -- see
+    // boss-entity-ids-data-mining.md for the full session writeup (constructor,
+    // FD4DebugMenuManager field-name confirmation, FieldInsSelector decode). Each
+    // slot is NameId(+0x0)/Handle(+0x4)/MyDamage(+0x8)/NetDamage(+0xC), 0x98-byte
+    // stride, 3 slots. NameId == -1 means inactive; a transition away from -1 means
+    // a boss gauge just appeared. Handle is not an opaque value -- it's a
+    // FieldInsSelector (see FieldInsMapping below).
+    public static class MenuMan
+    {
+        public static nint Base;
+
+        public const int BossGaugeSlotBase = 0x1AF8;
+        public const int BossGaugeStride = 0x98;
+        public const int BossGaugeSlotCount = 3;
+
+        public const int BossGaugeNameId = 0x0;
+        public const int BossGaugeHandle = 0x4;
+    }
+
+    // FieldInsSelector decode table (FieldInsMapping_ARRAY_1445be410 in the 1.15.2
+    // Ghidra DB), confirmed via FieldInsLookupTemplate::GetWorldBlockChrIndex/
+    // GetFieldInsIndex + a direct data dump of the table (2026-08-14). This is a
+    // packed 32-bit value shared engine-wide (DS3/Sekiro/ER all use the concept,
+    // publicly documented as "FieldInsHandle"), not DS3-specific -- but the actual
+    // shift/mask values below are this table's, re-derive per game if reused.
+    // Table index 1 confirmed named "CHR" (read the string directly in Ghidra) --
+    // the only category BossGauge.Handle values should ever decode as.
+    public static class FieldInsMapping
+    {
+        public const uint ChrMapType = 1;
+        public const int ChrBlockIndexShift = 0xE;
+        public const uint ChrBlockIndexMask = 0x3F;
+        public const uint ChrFieldInsIndexMask = 0x3FFF;
     }
 
     public static class GameDataMan
@@ -152,6 +207,26 @@ public static class DS3Offsets
             Version1_13_0_0 => 0x4766D18,
             Version1_14_0_0 or Version1_15_0_0 => 0x4768E78,
             Version1_15_1_0 or Version1_15_2_0 => 0x477FDB8,
+            _ => 0
+        };
+
+        // Same values SilkySouls3 already resolves for this global -- both tools
+        // read the same binary, so these are shared, not independently re-derived.
+        MenuMan.Base = moduleBase + Version switch
+        {
+            Version1_3_2_0 => 0x46A7F60,
+            Version1_4_1_0 or Version1_4_2_0 or Version1_4_3_0 => 0x46A9280,
+            Version1_5_0_0 => 0x46AD380,
+            Version1_5_1_0 => 0x46AC380,
+            Version1_6_0_0 => 0x46AD3E0,
+            Version1_7_0_0 => 0x46B1C18,
+            Version1_8_0_0 => 0x47103D8,
+            Version1_9_0_0 or Version1_10_0_0 => 0x4710518,
+            Version1_11_0_0 => 0x4743808,
+            Version1_12_0_0 => 0x4746988,
+            Version1_13_0_0 => 0x474A188,
+            Version1_14_0_0 or Version1_15_0_0 => 0x474C2E8,
+            Version1_15_1_0 or Version1_15_2_0 => 0x4763258,
             _ => 0
         };
 
@@ -654,6 +729,7 @@ public static class DS3Offsets
         _printBaseAddr = moduleBase;
         Console.WriteLine("--- Globals ---");
         PrintOffset("WorldChrMan.Base", WorldChrMan.Base);
+        PrintOffset("MenuMan.Base", MenuMan.Base);
         PrintOffset("GameDataMan", GameDataMan.Base);
         PrintOffset("UserInputManager", UserInputManager.Base);
         PrintOffset("Float20", Float20);
