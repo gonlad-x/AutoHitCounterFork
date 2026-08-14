@@ -29,6 +29,7 @@ public class DSRModule : IGameModule, IDisposable, IVersionedGameModule
     private DSREventService _eventService;
     private EventLogReader _eventLogReader;
     private DSRRunStartService _runStartService;
+    private DSRBossHealthBarService _bossHealthBarService;
 
     public event Action OnHit;
     public event Action OnEventSet;
@@ -67,6 +68,7 @@ public class DSRModule : IGameModule, IDisposable, IVersionedGameModule
             Base + EventLogWriteIdx,
             Base + EventLogBuffer);
         _runStartService = new DSRRunStartService(_memoryService, _hookManager);
+        _bossHealthBarService = new DSRBossHealthBarService(_memoryService);
         _eventLogReader.EntriesReceived += entries => OnEventLogEntriesReceived?.Invoke(entries);
 
         _eventService.InstallHook();
@@ -109,6 +111,11 @@ public class DSRModule : IGameModule, IDisposable, IVersionedGameModule
         if (_eventService.ShouldSplit())
         {
             OnEventSet?.Invoke();
+        }
+
+        if (_bossHealthBarService.TryGetLatestSpawn(out var entityId))
+        {
+            OnBossHealthBarSpawn?.Invoke(entityId);
         }
 
         _eventLogReader.Poll();

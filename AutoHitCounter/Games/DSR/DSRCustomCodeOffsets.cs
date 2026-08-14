@@ -27,5 +27,4 @@ public class DSRCustomCodeOffsets
     public const int EventLogWriteIdx = 0x3000;
     public const int EventLogCode = 0x3020;
     public const int EventLogBuffer = 0x3100;
-
 }
