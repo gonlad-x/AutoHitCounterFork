@@ -23,6 +23,7 @@ public class ManualGameModule : IGameModule, IDisposable
     public event Action<long> OnTimeChanged;
     public event Action OnRunStart;
     public event Action<uint> OnBossHealthBarSpawn;
+    public event Action OnBossGaugeActivated;
 
     public ManualGameModule()
     {
@@ -68,5 +69,6 @@ public class ManualGameModule : IGameModule, IDisposable
         OnTimeChanged = null;
         OnRunStart = null;
         OnBossHealthBarSpawn = null;
+        OnBossGaugeActivated = null;
     }
 }
