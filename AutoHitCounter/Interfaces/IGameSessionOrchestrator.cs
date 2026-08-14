@@ -17,6 +17,8 @@ public interface IGameSessionOrchestrator : IDisposable
     event Action AttachmentChanged;
     event Action<uint> BossHealthBarSpawnDetected;
 
+    event Action BossGaugeActivated;
+
     void Initialize(IHitRulesProvider hitRulesProvider,
         Func<Dictionary<uint, (string Name, int Required, int Hit)>> activeEventsProvider);
 

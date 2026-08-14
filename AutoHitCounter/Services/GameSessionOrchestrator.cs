@@ -60,6 +60,8 @@ public class GameSessionOrchestrator : IGameSessionOrchestrator
 
     public event Action<uint> BossHealthBarSpawnDetected;
 
+    public event Action BossGaugeActivated;
+
     public Game ActiveGame => _activeGame;
 
     public bool IsAttached => _isAttached;
@@ -127,6 +129,7 @@ public class GameSessionOrchestrator : IGameSessionOrchestrator
         TimeChangedMs = null;
         AttachmentChanged = null;
         BossHealthBarSpawnDetected = null;
+        BossGaugeActivated = null;
     }
 
     private void SwapModule()
@@ -169,6 +172,7 @@ public class GameSessionOrchestrator : IGameSessionOrchestrator
         _currentModule.OnEventLogEntriesReceived += entries => EventLogEntries?.Invoke(entries);
         _currentModule.OnTimeChanged += ms => TimeChangedMs?.Invoke(ms);
         _currentModule.OnBossHealthBarSpawn += entityId => BossHealthBarSpawnDetected?.Invoke(entityId);
+        _currentModule.OnBossGaugeActivated += () => BossGaugeActivated?.Invoke();
 
         if (_eventLogEnabled)
             _currentModule.SetEventLogEnabled(true);

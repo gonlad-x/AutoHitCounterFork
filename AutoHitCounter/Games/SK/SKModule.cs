@@ -38,6 +38,7 @@ public class SKModule : IGameModule, IDisposable, IVersionedGameModule
     public event Action OnRunStart;
     public event Action OnVersionDetected;
     public event Action<uint> OnBossHealthBarSpawn;
+    public event Action OnBossGaugeActivated;
 
     public SKModule(IMemoryService memoryService, IStateService stateService, HookManager hookManager,
         ITickService tickService, Dictionary<uint, (string Name, int Required, int Hit)> events, IHitRulesProvider rules)
@@ -151,6 +152,7 @@ public class SKModule : IGameModule, IDisposable, IVersionedGameModule
         OnTimeChanged = null;
         OnRunStart = null;
         OnBossHealthBarSpawn = null;
+        OnBossGaugeActivated = null;
     }
 
     public void UpdateEvents(Dictionary<uint, (string Name, int Required, int Hit)> events)

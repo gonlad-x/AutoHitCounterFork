@@ -36,6 +36,7 @@ public class DS3Module : IGameModule, IDisposable, IVersionedGameModule
     public event Action<long> OnTimeChanged;
     public event Action OnRunStart;
     public event Action<uint> OnBossHealthBarSpawn;
+    public event Action OnBossGaugeActivated;
     public event Action OnVersionDetected;
 
     public DS3Module(IMemoryService memoryService, IStateService stateService, HookManager hookManager,
@@ -146,6 +147,7 @@ public class DS3Module : IGameModule, IDisposable, IVersionedGameModule
         OnTimeChanged = null;
         OnRunStart = null;
         OnBossHealthBarSpawn = null;
+        OnBossGaugeActivated = null;
     }
 
     public void UpdateEvents(Dictionary<uint, (string Name, int Required, int Hit)> events)

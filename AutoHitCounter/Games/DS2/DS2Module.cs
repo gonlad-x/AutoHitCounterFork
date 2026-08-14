@@ -26,6 +26,7 @@ public class DS2Module : IGameModule, IDisposable, IVersionedGameModule
     private DS2SettingsService _settingsService;
     private DS2IgtService _igtService;
     private EventLogReader _eventLogReader;
+    private DS2BossGaugeService _bossGaugeService;
     private readonly IHitRulesProvider _rules;
 
     public string GameVersion => DS2Offsets.Version.GetDescription();
@@ -38,6 +39,7 @@ public class DS2Module : IGameModule, IDisposable, IVersionedGameModule
     public event Action<long> OnTimeChanged;
     public event Action OnRunStart;
     public event Action<uint> OnBossHealthBarSpawn;
+    public event Action OnBossGaugeActivated;
     public event Action OnVersionDetected;
 
     public DS2Module(IMemoryService memoryService, IStateService stateService, HookManager hookManager,
@@ -78,6 +80,7 @@ public class DS2Module : IGameModule, IDisposable, IVersionedGameModule
             Base + EventLogWriteIdx,
             Base + EventLogBuffer);
         _eventLogReader.EntriesReceived += entries => OnEventLogEntriesReceived?.Invoke(entries);
+        _bossGaugeService = new DS2BossGaugeService(_memoryService);
 
         ApplySettings(onlyEnabled: true);
 
@@ -127,6 +130,11 @@ public class DS2Module : IGameModule, IDisposable, IVersionedGameModule
 
         _igtService.Update();
         OnTimeChanged?.Invoke(_igtService.ElapsedMilliseconds);
+
+        if (_bossGaugeService.TryGetActivation())
+        {
+            OnBossGaugeActivated?.Invoke();
+        }
     }
 
     private bool IsLoaded()
@@ -154,6 +162,7 @@ public class DS2Module : IGameModule, IDisposable, IVersionedGameModule
         OnTimeChanged = null;
         OnRunStart = null;
         OnBossHealthBarSpawn = null;
+        OnBossGaugeActivated = null;
     }
 
     public void UpdateEvents(Dictionary<uint, (string Name, int Required, int Hit)> events)

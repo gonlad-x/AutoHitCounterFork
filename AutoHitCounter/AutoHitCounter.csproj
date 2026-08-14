@@ -142,6 +142,7 @@
     <Compile Include="Enums\ThemeMode.cs" />
     <Compile Include="Games\DS2\DS2EventService.cs" />
     <Compile Include="Games\DS2\DS2HitService.cs" />
+    <Compile Include="Games\DS2\DS2BossGaugeService.cs" />
     <Compile Include="Games\DS2\DS2IgtService.cs" />
     <Compile Include="Games\DS2\DS2Module.cs" />
     <Compile Include="Games\DS2\DS2Offsets.cs" />

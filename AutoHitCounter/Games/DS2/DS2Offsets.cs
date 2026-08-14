@@ -73,6 +73,41 @@ public static class DS2Offsets
             Scholar1_0_2 or Scholar1_0_3 => 0xD0,
             _ => 0x0
         };
+
+        // Pointer to a "subsystem group" object that owns FeOperatorFrontend at its
+        // own +0x10 field. Found via Ghidra RE 2026-08-14, live-confirmed against
+        // Scholar 1.0.3 -- not yet resolved/verified per-version for the other 3
+        // tracked versions (only this global pointer's *offset* is version-specific;
+        // its own internal layout is expected stable, same reasoning as ChrIns
+        // fields elsewhere in this codebase).
+        public const int FeSubsystemGroup = 0x22e0;
+    }
+
+    // The boss-gauge UI manager. Reached via GameManagerImp.Base -> deref ->
+    // +FeSubsystemGroup -> deref -> +0x10 -> this. Live-confirmed 2026-08-14.
+    public static class FeOperatorFrontend
+    {
+        public const int BossGauge0 = 0x40;
+        public const int BossGauge1 = 0x48;
+        public const int BossGauge2 = 0x50;
+    }
+
+    // Per-slot boss-gauge instance, live-confirmed 2026-08-14 against two real boss
+    // fights. Ratio (+0xc4) is 0 while inactive and a real current/max HP ratio once
+    // a boss is showing -- this is the reliable "is this slot active" signal used for
+    // the boss-timer feature. HpCurrent/HpMax (+0xd8/+0xdc) are plain ints (read as
+    // float once by mistake mid-session -- that produced a ~6e-42 denormal, which is
+    // exactly what a small positive int looks like misread as float; corrected).
+    // Tag (+0xce), despite being what last session's static RE mapped as "target
+    // character ID," stayed 0 through both live fights -- its write path was never
+    // found (see the ESD command registry dead end in project notes), so it is NOT
+    // usable for per-boss identification. Kept here for reference only.
+    public static class FeSceneBossHpGuage
+    {
+        public const int Ratio = 0xc4;
+        public const int HpCurrent = 0xd8;
+        public const int HpMax = 0xdc;
+        public const int Tag = 0xce;
     }
 
     public static nint MapId;

@@ -76,6 +76,7 @@ namespace AutoHitCounter.ViewModels
             _orchestrator.EventLogEntries += entries => _eventLogViewModel?.RefreshEventLogs(entries);
             _orchestrator.TimeChangedMs += UpdateInGameTime;
             _orchestrator.BossHealthBarSpawnDetected += HandleBossHealthBarSpawn;
+            _orchestrator.BossGaugeActivated += HandleBossGaugeActivated;
 
             _splitNav = splitNavigationService;
             _splitNav.Load(Splits);
@@ -780,6 +781,34 @@ namespace AutoHitCounter.ViewModels
             }
         }
 
+        // DS2-only path: its boss-gauge struct has no per-boss identifier reachable
+        // (see DS2BossGaugeService.cs comments -- the field that looked like one
+        // stayed 0 through live testing), so there's no entity ID to search Splits
+        // for. Instead this always attributes activation to CurrentSplit directly --
+        // same semantics as the manual ToggleBossTimer hotkey below, just triggered
+        // automatically instead of by a keypress. If CurrentSplit is already the one
+        // being timed, this is a no-op (repeat activations from the same fight just
+        // let the running clock continue, matching every other game's policy of
+        // never auto-resetting on a repeat signal).
+        private void HandleBossGaugeActivated()
+        {
+            if (!SettingsManager.Default.SKBossTimeTrackersEnabled) return;
+            if (_selectedGame != _orchestrator.ActiveGame) return;
+            if (IsPracticeMode || IsRunComplete || CurrentSplit == null) return;
+
+            var entry = GetActiveProfileSplitEntry(CurrentSplit);
+            if (!IsBossTimerEligible(entry)) return;
+
+            if (_bossTimerSplit == CurrentSplit) return;
+
+            _bossTimerStartIgtMs = (long)InGameTime.TotalMilliseconds;
+            _bossTimerAccumulatedMs = 0;
+            _bossTimerIsPaused = false;
+            _bossTimerSplit = CurrentSplit;
+            _bossTimerFlag = entry.EventId;
+            CurrentSplit.BossKillTimeMs = null;
+        }
+
         // Manual start/pause/resume toggle, bound to the ToggleBossTimer hotkey. Unlike
         // HandleBossHealthBarSpawn this always targets CurrentSplit directly (a manual
         // press has no detected entity to match against), and pausing folds the elapsed
@@ -874,9 +903,18 @@ namespace AutoHitCounter.ViewModels
         // every caller before reaching here) and its EventId has a confirmed boss Entity ID
         // mapping -- i.e. no more per-split opt-in, the global toggle covers every boss
         // automatically, including ones added to the profile afterward.
+        // DS2 is a special case: it has no per-boss entity-ID table at all (see
+        // DS2BossGaugeService.cs/HandleBossGaugeActivated -- its gauge struct has no
+        // reachable per-boss identifier, so activation always targets CurrentSplit
+        // directly instead of searching for an entity match). Requiring an entity-ID
+        // table entry here would make every DS2 split ineligible, silently blocking
+        // the timer regardless of gauge activation -- any split with an EventId is
+        // eligible for DS2, matching the game-agnostic gate the other four games use
+        // via their own entity-ID tables.
         private bool IsBossTimerEligible(SplitEntry entry)
         {
             if (entry?.EventId is not { } eventId) return false;
+            if (_selectedGame.Title == GameTitle.DarkSouls2) return true;
             return _gameModuleFactory.GetBossEntityIdsForGame(_selectedGame.Title).ContainsKey(eventId);
         }
 
