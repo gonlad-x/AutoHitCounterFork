@@ -3155,4 +3155,54 @@ e9 00 00 00 00          jmp    33 &lt;_main+0x33&gt;</value>
 2054390800,2054390800
 2054390850,2054390850</value>
   </data>
+  <data name="DSRBossHealthBarLog" xml:space="preserve">
+    <value>44 8b 51 08             mov    r10d,DWORD PTR [rcx+0x8]
+50                      push   rax
+53                      push   rbx
+8b 05 00 00 00 00       mov    eax,DWORD PTR [rip+0x0]        # c &lt;_main+0xc&gt;
+48 8d 1d 00 00 00 00    lea    rbx,[rip+0x0]        # 13 &lt;_main+0x13&gt;
+48 8d 1c 83             lea    rbx,[rbx+rax*4]
+44 89 13                mov    DWORD PTR [rbx],r10d
+ff c0                   inc    eax
+81 e0 ff 01 00 00       and    eax,0x1ff
+89 05 00 00 00 00       mov    DWORD PTR [rip+0x0],eax        # 28 &lt;_main+0x28&gt;
+5b                      pop    rbx
+58                      pop    rax
+4c 89 34 24             mov    QWORD PTR [rsp],r14
+48 8d 64 24 f8          lea    rsp,[rsp-0x8]
+e9 00 00 00 00          jmp    38 &lt;_main+0x38&gt;</value>
+  </data>
+  <data name="DSRBossEntityIds" xml:space="preserve">
+    <value>Flag,EntityID
+2,1000800
+11015385,1010700
+3,1010800
+3,1010801
+11015375,1010750
+4,1100160
+11200900,1200801
+5,1200800
+11215005,1210800
+11215015,1210820
+11215025,1210840
+11210004,1210401
+6,1300800
+7,1310800
+9,1400800
+11410900,1410600
+11415344,1410400
+11415384,1410700
+10,1410802
+11,1500800
+12,1510800
+12,1510801
+12,1510810
+12,1510811
+11510900,1510650
+13,1600800
+14,1700800
+15,1800800
+16,1810800
+11810900,1810810</value>
+  </data>
 </root>

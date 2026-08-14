@@ -33,7 +33,7 @@ public class GameModuleFactory(
 
     private static readonly Dictionary<GameTitle, GameRegistration> Registrations = new()
     {
-        [GameTitle.DarkSoulsRemastered] = new("darksoulsremastered", "DSREvents", true),
+        [GameTitle.DarkSoulsRemastered] = new("darksoulsremastered", "DSREvents", true, "DSRBossEntityIds"),
         [GameTitle.DarkSouls2]          = new("darksoulsii", "DS2Events", true),
         [GameTitle.DarkSouls3]          = new("darksoulsiii", "DS3Events", true, "DS3BossEntityIds"),
         [GameTitle.Sekiro]              = new("sekiro", "SKEvents", true, "SKBossEntityIds"),
