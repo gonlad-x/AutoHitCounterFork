@@ -29,6 +29,7 @@ public class DS3Module : IGameModule, IDisposable, IVersionedGameModule
     private EventLogReader _eventLogReader;
     private DS3RunStartService _runStartService;
     private DS3BossHealthBarService _bossHealthBarService;
+    private DS3BossGaugeService _bossGaugeService;
 
     public event Action OnHit;
     public event Action OnEventSet;
@@ -70,6 +71,7 @@ public class DS3Module : IGameModule, IDisposable, IVersionedGameModule
             Base + EventLogBuffer);
         _runStartService = new DS3RunStartService(_memoryService, _hookManager);
         _bossHealthBarService = new DS3BossHealthBarService(_memoryService, _hookManager);
+        _bossGaugeService = new DS3BossGaugeService(_memoryService);
         _eventLogReader.EntriesReceived += entries => OnEventLogEntriesReceived?.Invoke(entries);
 
         ApplySettings(onlyEnabled: true);
@@ -122,8 +124,22 @@ public class DS3Module : IGameModule, IDisposable, IVersionedGameModule
 
         if (_bossHealthBarService.TryGetLatestSpawn(out var entityId))
         {
+#if DEBUG
+            MsgBox.Show($"[HOOK] entity ID: {entityId}", "DS3 Boss Gauge Cross-Validation");
+#endif
             OnBossHealthBarSpawn?.Invoke(entityId);
         }
+
+        // TEMPORARY cross-validation of the new poll-based DS3BossGaugeService
+        // against the live hook above -- not wired into OnBossHealthBarSpawn yet.
+        // Remove once confirmed to agree with the hook across real fights (see
+        // boss-entity-ids-data-mining.md).
+#if DEBUG
+        if (_bossGaugeService.TryGetLatestSpawn(out var pollEntityId))
+        {
+            MsgBox.Show($"[POLL] entity ID: {pollEntityId}", "DS3 Boss Gauge Cross-Validation");
+        }
+#endif
 
         _eventLogReader.Poll();
 

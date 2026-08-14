@@ -30,6 +30,7 @@ public class SKModule : IGameModule, IDisposable, IVersionedGameModule
     private EventLogReader _eventLogReader;
     private SKRunStartService _runStartService;
     private SKBossHealthBarService _bossHealthBarService;
+    private SKBossGaugeService _bossGaugeService;
 
     public event Action OnHit;
     public event Action OnEventSet;
@@ -80,6 +81,7 @@ public class SKModule : IGameModule, IDisposable, IVersionedGameModule
             Base + EventLogBuffer);
         _runStartService = new SKRunStartService(_memoryService, _hookManager);
         _bossHealthBarService = new SKBossHealthBarService(_memoryService, _hookManager);
+        _bossGaugeService = new SKBossGaugeService(_memoryService);
         _eventLogReader.EntriesReceived += entries => OnEventLogEntriesReceived?.Invoke(entries);
 
         ApplySettings(onlyEnabled: true);
@@ -127,8 +129,22 @@ public class SKModule : IGameModule, IDisposable, IVersionedGameModule
 
         if (_bossHealthBarService.TryGetLatestSpawn(out var entityId))
         {
+#if DEBUG
+            MsgBox.Show($"[HOOK] entity ID: {entityId}", "SK Boss Gauge Cross-Validation");
+#endif
             OnBossHealthBarSpawn?.Invoke(entityId);
         }
+
+        // TEMPORARY cross-validation of the new poll-based SKBossGaugeService
+        // against the live hook above -- not wired into OnBossHealthBarSpawn yet.
+        // Remove once confirmed to agree with the hook across real fights (see
+        // boss-entity-ids-data-mining.md).
+#if DEBUG
+        if (_bossGaugeService.TryGetLatestSpawn(out var pollEntityId))
+        {
+            MsgBox.Show($"[POLL] entity ID: {pollEntityId}", "SK Boss Gauge Cross-Validation");
+        }
+#endif
 
         _eventLogReader.Poll();
 

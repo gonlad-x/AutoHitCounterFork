@@ -151,6 +151,7 @@
     <Compile Include="Games\DS2\DS2TimerStatus.cs" />
     <Compile Include="Games\DS2\DS2CustomCodeOffsets.cs" />
     <Compile Include="Games\DS3\DS3BossHealthBarService.cs" />
+    <Compile Include="Games\DS3\DS3BossGaugeService.cs" />
     <Compile Include="Games\DS3\DS3CustomCodeOffsets.cs" />
     <Compile Include="Games\DS3\DS3EventService.cs" />
     <Compile Include="Games\DS3\DS3HitService.cs" />
@@ -170,6 +171,7 @@
     <Compile Include="Games\DSR\DSRRunStartService.cs" />
     <Compile Include="Games\DSR\DSRVersion.cs" />
     <Compile Include="Games\ER\EldenRingBossHealthBarService.cs" />
+    <Compile Include="Games\ER\EldenRingBossGaugeService.cs" />
     <Compile Include="Games\ER\EldenRingCustomCodeOffsets.cs" />
     <Compile Include="Games\ER\EldenRingEventService.cs" />
     <Compile Include="Games\ER\EldenRingHitService.cs" />
@@ -180,6 +182,7 @@
     <Compile Include="Games\ER\EldenRingSettingsService.cs" />
     <Compile Include="Games\ER\EldenRingVersion.cs" />
     <Compile Include="Games\SK\SKBossHealthBarService.cs" />
+    <Compile Include="Games\SK\SKBossGaugeService.cs" />
     <Compile Include="Games\SK\SKCustomCodeOffsets.cs" />
     <Compile Include="Games\SK\SKEventService.cs" />
     <Compile Include="Games\SK\SKHitService.cs" />
