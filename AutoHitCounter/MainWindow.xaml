@@ -535,6 +535,9 @@
                                 <MenuItem Header="Reset Boss Timer"
                                           Command="{Binding PlacementTarget.DataContext.ResetSelectedSplitBossTimerCommand,
                             RelativeSource={RelativeSource AncestorType=ContextMenu}}" />
+                                <MenuItem Header="Restore Timer"
+                                          Command="{Binding PlacementTarget.DataContext.RestoreSelectedSplitBossTimerCommand,
+                            RelativeSource={RelativeSource AncestorType=ContextMenu}}" />
                                 <MenuItem Header="Mark split as Distance PB"
                                           Command="{Binding PlacementTarget.DataContext.SetDistancePbCommand,
                             RelativeSource={RelativeSource AncestorType=ContextMenu}}" />

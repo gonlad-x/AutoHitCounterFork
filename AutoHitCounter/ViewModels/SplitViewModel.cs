@@ -96,6 +96,13 @@ public class SplitViewModel : BaseViewModel
         set => SetProperty(ref _bossKillTimeBestMs, value);
     }
 
+    // Session-only (not persisted to SplitEntry) snapshot of whatever BossKillTimeMs
+    // last held right before a non-kill clear (ResetBossTimer, HandleGameUnloaded, the
+    // IGT-rewind guard) wiped it -- lets "Restore Timer" recover a run that got reset
+    // by something other than the player deliberately choosing to reset it (e.g. a
+    // quitout or warp mid-attempt).
+    public long? BossKillTimeRestoreMs { get; set; }
+
     private bool _isPast;
 
     // Set by MainViewModel whenever the current-split cursor moves -- true for any split
