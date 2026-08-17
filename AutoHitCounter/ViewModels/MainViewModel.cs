@@ -1639,18 +1639,30 @@ namespace AutoHitCounter.ViewModels
             _overlayServerService.BroadcastState(OverlayMapper.MapFrom(this));
         }
 
+        private static string GetGameInitials(GameTitle? title) => title switch
+        {
+            GameTitle.DarkSoulsRemastered => "DSR",
+            GameTitle.DarkSouls2 => "DS2",
+            GameTitle.DarkSouls3 => "DS3",
+            GameTitle.Sekiro => "SSDT",
+            GameTitle.EldenRing => "ER",
+            GameTitle.Manual => "Manual",
+            _ => "Unknown"
+        };
+
         private void ExportRunData()
         {
             if (ActiveProfile == null) return;
 
             var invalidChars = Path.GetInvalidFileNameChars();
             var safeName = new string(ActiveProfile.Name.Select(c => invalidChars.Contains(c) ? '_' : c).ToArray());
+            var gameInitials = GetGameInitials(_selectedGame?.Title);
 
             var dialog = new SaveFileDialog
             {
                 Filter = "CSV files (*.csv)|*.csv",
                 DefaultExt = ".csv",
-                FileName = $"{safeName} - Run Data - Attempt {AttemptCount}",
+                FileName = $"{gameInitials}-{safeName}-{AttemptCount}",
                 InitialDirectory = SettingsManager.Default.LastImportExportPath
             };
 
