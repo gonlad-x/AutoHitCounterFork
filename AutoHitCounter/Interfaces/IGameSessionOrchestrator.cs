@@ -19,6 +19,8 @@ public interface IGameSessionOrchestrator : IDisposable
 
     event Action BossGaugeActivated;
 
+    event Action GameUnloaded;
+
     void Initialize(IHitRulesProvider hitRulesProvider,
         Func<Dictionary<uint, (string Name, int Required, int Hit)>> activeEventsProvider);
 

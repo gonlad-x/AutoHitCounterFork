@@ -23,6 +23,7 @@ public class DS3Module : IGameModule, IDisposable, IVersionedGameModule
     public string GameVersion => DS3Offsets.IsAobFallback ? "Unknown Patch" : DS3Offsets.Version.GetDescription();
 
     private DateTime? _lastHit;
+    private bool _wasLoaded;
     private DS3HitService _hitService;
     private DS3EventService _eventService;
     private DS3SettingsService _settingsService;
@@ -37,6 +38,7 @@ public class DS3Module : IGameModule, IDisposable, IVersionedGameModule
     public event Action OnRunStart;
     public event Action<uint> OnBossHealthBarSpawn;
     public event Action OnBossGaugeActivated;
+    public event Action OnGameUnloaded;
     public event Action OnVersionDetected;
 
     public DS3Module(IMemoryService memoryService, IStateService stateService, HookManager hookManager,
@@ -99,7 +101,11 @@ public class DS3Module : IGameModule, IDisposable, IVersionedGameModule
     {
         if (_runStartService.IsNewGameStarted()) OnRunStart?.Invoke();
 
-        if (!IsLoaded())
+        var isLoaded = IsLoaded();
+        if (_wasLoaded && !isLoaded) OnGameUnloaded?.Invoke();
+        _wasLoaded = isLoaded;
+
+        if (!isLoaded)
         {
             _hitService.ResetFlags();
             return;
@@ -147,6 +153,7 @@ public class DS3Module : IGameModule, IDisposable, IVersionedGameModule
         OnRunStart = null;
         OnBossHealthBarSpawn = null;
         OnBossGaugeActivated = null;
+        OnGameUnloaded = null;
     }
 
     public void UpdateEvents(Dictionary<uint, (string Name, int Required, int Hit)> events)

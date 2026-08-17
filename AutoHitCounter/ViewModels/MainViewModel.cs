@@ -77,6 +77,7 @@ namespace AutoHitCounter.ViewModels
             _orchestrator.TimeChangedMs += UpdateInGameTime;
             _orchestrator.BossHealthBarSpawnDetected += HandleBossHealthBarSpawn;
             _orchestrator.BossGaugeActivated += HandleBossGaugeActivated;
+            _orchestrator.GameUnloaded += HandleGameUnloaded;
 
             _splitNav = splitNavigationService;
             _splitNav.Load(Splits);
@@ -809,6 +810,29 @@ namespace AutoHitCounter.ViewModels
             CurrentSplit.BossKillTimeMs = null;
         }
 
+        // Fires when the player leaves the game world (quitout to title, or any other
+        // full unload) while a boss timer is actively tracking a split -- resets it
+        // rather than leaving it running/paused against a now-stale IGT reference.
+        // Deliberately narrower than the "no auto-reset on retry" policy elsewhere in
+        // this file (see HandleBossHealthBarSpawn): that policy is about not confusing
+        // a genuine phase transition/reshow for a wipe, but a full game-world unload is
+        // an unambiguous signal the current attempt ended, not a case that policy was
+        // meant to protect. Complements the IGT-rewind guard in UpdateInGameTime, which
+        // still catches the case where the world reloads with IGT rewound before this
+        // event's own IsLoaded()-transition would otherwise be observed.
+        private void HandleGameUnloaded()
+        {
+            if (_selectedGame != _orchestrator.ActiveGame) return;
+            if (_bossTimerSplit == null) return;
+
+            var split = _bossTimerSplit;
+            ClearBossTimerState();
+            split.BossKillTimeMs = null;
+
+            SaveRunState();
+            _overlayServerService.BroadcastState(OverlayMapper.MapFrom(this));
+        }
+
         // Manual start/pause/resume toggle, bound to the ToggleBossTimer hotkey. Unlike
         // HandleBossHealthBarSpawn this always targets CurrentSplit directly (a manual
         // press has no detected entity to match against), and pausing folds the elapsed
@@ -968,7 +992,7 @@ namespace AutoHitCounter.ViewModels
         private void ManualAdvanceSplit()
         {
             if (CurrentSplit == null) return;
-            ClearBossTimerState();
+            StopBossTimer();
             _splitNav.Advance();
         }
 
@@ -990,8 +1014,30 @@ namespace AutoHitCounter.ViewModels
             // (same as the IGT text above) so the overlay isn't broadcast 10x/second.
             if (_bossTimerStartIgtMs is { } startMs && _bossTimerSplit != null)
             {
+                var newElapsed = _bossTimerAccumulatedMs + (igt - startMs);
+
+                // IGT reflects the save file's last checkpoint, not free-running real
+                // time -- quitting out without an intervening autosave (e.g. mid-fight)
+                // can make the readable IGT value drop on reload, discarding whatever
+                // progress was made since the last checkpoint. That rewinds igt behind
+                // this segment's own startMs, which would otherwise show as elapsed time
+                // going negative (visually: jumping to a positive number, counting down
+                // to 0, then counting back up as the new, lower igt trajectory catches
+                // back up to the old startMs). Confirmed live 2026-08-16 -- not caused by
+                // ResetRun/ClearBossTimerState (both ruled out via debug instrumentation).
+                // Treat a rewound segment as invalid rather than displaying it: clear
+                // tracking so the next genuine healthbar spawn starts a fresh segment
+                // from the post-reload igt baseline instead of computing nonsense.
+                if (newElapsed < 0)
+                {
+                    var split = _bossTimerSplit;
+                    ClearBossTimerState();
+                    split.BossKillTimeMs = null;
+                    return;
+                }
+
                 var previousDisplay = _bossTimerSplit.BossKillTimeDisplay;
-                _bossTimerSplit.BossKillTimeMs = _bossTimerAccumulatedMs + (igt - startMs);
+                _bossTimerSplit.BossKillTimeMs = newElapsed;
                 if (_bossTimerSplit.BossKillTimeDisplay != previousDisplay)
                     _overlayServerService.BroadcastState(OverlayMapper.MapFrom(this));
             }

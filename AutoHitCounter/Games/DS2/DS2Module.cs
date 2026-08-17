@@ -32,6 +32,7 @@ public class DS2Module : IGameModule, IDisposable, IVersionedGameModule
     public string GameVersion => DS2Offsets.Version.GetDescription();
 
     private DateTime? _lastHit;
+    private bool _wasLoaded;
 
     public event Action OnHit;
     public event Action OnEventSet;
@@ -40,6 +41,7 @@ public class DS2Module : IGameModule, IDisposable, IVersionedGameModule
     public event Action OnRunStart;
     public event Action<uint> OnBossHealthBarSpawn;
     public event Action OnBossGaugeActivated;
+    public event Action OnGameUnloaded;
     public event Action OnVersionDetected;
 
     public DS2Module(IMemoryService memoryService, IStateService stateService, HookManager hookManager,
@@ -111,8 +113,12 @@ public class DS2Module : IGameModule, IDisposable, IVersionedGameModule
     {
         
         
-        if (!IsLoaded()) _hitService.ResetFlags();
-        
+        var isLoaded = IsLoaded();
+        if (_wasLoaded && !isLoaded) OnGameUnloaded?.Invoke();
+        _wasLoaded = isLoaded;
+
+        if (!isLoaded) _hitService.ResetFlags();
+
         _hitService.EnsureHooksInstalled();
         
         if (_hitService.HasHit() && (_lastHit == null || (DateTime.Now - _lastHit.Value).TotalSeconds > 3))
@@ -163,6 +169,7 @@ public class DS2Module : IGameModule, IDisposable, IVersionedGameModule
         OnRunStart = null;
         OnBossHealthBarSpawn = null;
         OnBossGaugeActivated = null;
+        OnGameUnloaded = null;
     }
 
     public void UpdateEvents(Dictionary<uint, (string Name, int Required, int Hit)> events)

@@ -29,6 +29,7 @@ public class EldenRingModule : IGameModule, IDisposable, IVersionedGameModule
     public string GameVersion => EldenRingOffsets.IsAobFallback ? "Unknown Patch" : EldenRingOffsets.Version.GetDescription();
 
     private DateTime? _lastHit;
+    private bool _wasLoaded;
 
     public event Action OnHit;
 
@@ -38,6 +39,7 @@ public class EldenRingModule : IGameModule, IDisposable, IVersionedGameModule
     public event Action OnRunStart;
     public event Action<uint> OnBossHealthBarSpawn;
     public event Action OnBossGaugeActivated;
+    public event Action OnGameUnloaded;
     public event Action OnVersionDetected;
     
     public EldenRingModule(IMemoryService memoryService, IStateService stateService, HookManager hookManager,
@@ -100,7 +102,11 @@ public class EldenRingModule : IGameModule, IDisposable, IVersionedGameModule
     {
         if (_runStartService.IsNewGameStarted()) OnRunStart?.Invoke();
 
-        if (!IsLoaded())
+        var isLoaded = IsLoaded();
+        if (_wasLoaded && !isLoaded) OnGameUnloaded?.Invoke();
+        _wasLoaded = isLoaded;
+
+        if (!isLoaded)
         {
             _hitService.ResetFlags();
             return;
@@ -147,6 +153,7 @@ public class EldenRingModule : IGameModule, IDisposable, IVersionedGameModule
         OnRunStart = null;
         OnBossHealthBarSpawn = null;
         OnBossGaugeActivated = null;
+        OnGameUnloaded = null;
     }
     
     public void UpdateEvents(Dictionary<uint, (string Name, int Required, int Hit)> events)
