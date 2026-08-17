@@ -125,6 +125,8 @@ namespace AutoHitCounter.ViewModels
 
         public DelegateCommand SetPbCommand { get; set; }
 
+        public DelegateCommand MarkTimesAsPbCommand { get; set; }
+
         public DelegateCommand ExportRunDataCommand { get; set; }
 
         public DelegateCommand SaveNotesCommand { get; set; }
@@ -139,6 +141,8 @@ namespace AutoHitCounter.ViewModels
 
         public DelegateCommand RestoreSelectedSplitBossTimerCommand { get; set; }
 
+        public DelegateCommand MarkCurrentTimeAsPbCommand { get; set; }
+
         public DelegateCommand RenameSelectedSplitCommand { get; set; }
 
         public DelegateCommand EditAttemptsCommand { get; set; }
@@ -146,6 +150,8 @@ namespace AutoHitCounter.ViewModels
         public DelegateCommand ClearTotalPbCommand { get; set; }
 
         public DelegateCommand EditSplitPbCommand { get; set; }
+
+        public DelegateCommand EditSplitBossKillTimePbCommand { get; set; }
 
         public DelegateCommand MoveSplitUpCommand { get; set; }
         public DelegateCommand MoveSplitDownCommand { get; set; }
@@ -581,6 +587,7 @@ namespace AutoHitCounter.ViewModels
             DecrementHitCommand = new DelegateCommand(DecrementHit);
             ResetCommand = new DelegateCommand(ResetSplits);
             SetPbCommand = new DelegateCommand(SetPb);
+            MarkTimesAsPbCommand = new DelegateCommand(MarkTimesAsPb);
             ExportRunDataCommand = new DelegateCommand(ExportRunData);
             SetDistancePbCommand = new DelegateCommand(SetDistancePb, CanSetDistancePb);
 
@@ -651,6 +658,24 @@ namespace AutoHitCounter.ViewModels
                 _overlayServerService.BroadcastState(OverlayMapper.MapFrom(this));
             });
 
+            // Explicit override, distinct from StopBossTimer's automatic PB check --
+            // always overwrites BossKillTimeBestMs regardless of whether the current
+            // time is actually faster, per explicit user request.
+            MarkCurrentTimeAsPbCommand = new DelegateCommand(() =>
+            {
+                if (SelectedSplit == null || SelectedSplit.IsParent) return;
+                if (SelectedSplit.BossKillTimeMs is not { } ms) return;
+                if (_activeProfile == null) return;
+
+                var index = Splits.IndexOf(SelectedSplit);
+                if (index < 0 || index >= _activeProfile.Splits.Count) return;
+
+                SelectedSplit.BossKillTimeBestMs = ms;
+                _activeProfile.Splits[index].BossKillTimeBestMs = ms;
+                _profileService.SaveProfile(_activeProfile);
+                _overlayServerService.BroadcastState(OverlayMapper.MapFrom(this));
+            });
+
             ClearTotalPbCommand = new DelegateCommand(() =>
             {
                 var confirmed = MsgBox.ShowOkCancel("This will clear all personal bests. Are you sure?", "Clear PBs");
@@ -676,6 +701,12 @@ namespace AutoHitCounter.ViewModels
             {
                 if (SelectedSplit != null)
                     SelectedSplit.IsEditingPb = true;
+            });
+
+            EditSplitBossKillTimePbCommand = new DelegateCommand(() =>
+            {
+                if (SelectedSplit != null)
+                    SelectedSplit.IsEditingBossKillTimePb = true;
             });
 
             ToggleLockCommand = new DelegateCommand(() =>
@@ -975,10 +1006,6 @@ namespace AutoHitCounter.ViewModels
 
             split.BossKillTimeMs = elapsed;
             SaveRunState();
-            if (entry.BossKillTimeBestMs.HasValue && entry.BossKillTimeBestMs.Value <= elapsed) return;
-
-            entry.BossKillTimeBestMs = elapsed;
-            split.BossKillTimeBestMs = elapsed;
         }
 
         // Boss Time Trackers is a real per-game setting now (2026-08-14) -- each game has
@@ -1590,6 +1617,28 @@ namespace AutoHitCounter.ViewModels
             _overlayServerService.BroadcastState(OverlayMapper.MapFrom(this));
         }
 
+        // Unlike SetPb (hits), this only overwrites a split's time PB if the run's
+        // actual time beats the existing one -- a split with no PB yet always gets
+        // this run's time, but a slower time never overwrites a faster existing PB.
+        private void MarkTimesAsPb()
+        {
+            if (ActiveProfile == null) return;
+
+            for (int i = 0; i < Splits.Count && i < ActiveProfile.Splits.Count; i++)
+            {
+                if (Splits[i].IsParent) continue;
+                if (Splits[i].BossKillTimeMs is not { } ms) continue;
+                if (Splits[i].BossKillTimeBestMs is { } best && best <= ms) continue;
+
+                Splits[i].BossKillTimeBestMs = ms;
+                ActiveProfile.Splits[i].BossKillTimeBestMs = ms;
+            }
+
+            _profileService.SaveProfile(ActiveProfile);
+            RefreshSplitValues();
+            _overlayServerService.BroadcastState(OverlayMapper.MapFrom(this));
+        }
+
         private void ExportRunData()
         {
             if (ActiveProfile == null) return;
@@ -1655,6 +1704,50 @@ namespace AutoHitCounter.ViewModels
             RefreshSplitValues();
             SetDistancePbCommand?.RaiseCanExecuteChanged();
             _overlayServerService.BroadcastState(OverlayMapper.MapFrom(this));
+        }
+
+        public void CommitBossKillTimePbEdit(SplitViewModel split, string value)
+        {
+            if (TryParseBossKillTime(value, out var ms))
+            {
+                split.BossKillTimeBestMs = ms;
+                var index = Splits.IndexOf(split);
+                if (index >= 0 && index < _activeProfile.Splits.Count)
+                {
+                    _activeProfile.Splits[index].BossKillTimeBestMs = ms;
+                    _profileService.SaveProfile(_activeProfile);
+                }
+            }
+
+            split.IsEditingBossKillTimePb = false;
+            RefreshSplitValues();
+            _overlayServerService.BroadcastState(OverlayMapper.MapFrom(this));
+        }
+
+        // Accepts the same "m:ss" shape BossKillTimeBestDisplay renders, plus a bare
+        // seconds fallback for convenience. Invalid input is silently ignored (keeps
+        // the existing PB), matching CommitPbEdit's own int.TryParse-guarded pattern.
+        private static bool TryParseBossKillTime(string value, out long ms)
+        {
+            ms = 0;
+            if (string.IsNullOrWhiteSpace(value)) return false;
+
+            var parts = value.Split(':');
+            if (parts.Length == 2
+                && int.TryParse(parts[0], out var minutes) && minutes >= 0
+                && int.TryParse(parts[1], out var seconds) && seconds is >= 0 and < 60)
+            {
+                ms = (minutes * 60L + seconds) * 1000L;
+                return true;
+            }
+
+            if (parts.Length == 1 && int.TryParse(parts[0], out var secondsOnly) && secondsOnly >= 0)
+            {
+                ms = secondsOnly * 1000L;
+                return true;
+            }
+
+            return false;
         }
 
         private void IncrementHit()

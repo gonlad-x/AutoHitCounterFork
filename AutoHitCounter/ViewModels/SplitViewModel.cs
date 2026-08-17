@@ -84,7 +84,10 @@ public class SplitViewModel : BaseViewModel
         set
         {
             if (SetProperty(ref _bossKillTimeMs, value))
+            {
                 OnPropertyChanged(nameof(BossKillTimeDisplay));
+                OnPropertyChanged(nameof(BossKillTimeBrush));
+            }
         }
     }
 
@@ -93,8 +96,25 @@ public class SplitViewModel : BaseViewModel
     public long? BossKillTimeBestMs
     {
         get => _bossKillTimeBestMs;
-        set => SetProperty(ref _bossKillTimeBestMs, value);
+        set
+        {
+            if (SetProperty(ref _bossKillTimeBestMs, value))
+            {
+                OnPropertyChanged(nameof(BossKillTimeBestDisplay));
+                OnPropertyChanged(nameof(BossKillTimeBrush));
+            }
+        }
     }
+
+    // Green when the split is actually done (IsPast -- the same "completed" signal
+    // used elsewhere for this split) and its kill time beats its own PB. Gated on
+    // IsPast specifically so a still-live-ticking timer never flashes green just
+    // because it's transiently under the PB mid-fight -- only a finished kill counts.
+    // Same better-than-PB-is-green convention as DiffBrush, just no "worse" case
+    // since there's no time-diff column to attach that to.
+    public Brush BossKillTimeBrush => IsPast && BossKillTimeMs is { } ms && BossKillTimeBestMs is { } best && ms < best
+        ? GetBrush("DiffNegativeBrush")
+        : GetBrush("DiffNeutralBrush");
 
     // Session-only (not persisted to SplitEntry) snapshot of whatever BossKillTimeMs
     // last held right before a non-kill clear (ResetBossTimer, HandleGameUnloaded, the
@@ -114,11 +134,19 @@ public class SplitViewModel : BaseViewModel
         set
         {
             if (SetProperty(ref _isPast, value))
+            {
                 OnPropertyChanged(nameof(BossKillTimeDisplay));
+                OnPropertyChanged(nameof(BossKillTimeBestDisplay));
+                OnPropertyChanged(nameof(BossKillTimeBrush));
+            }
         }
     }
 
     public string BossKillTimeDisplay => BossKillTimeMs is { } ms
+        ? TimeSpan.FromMilliseconds(ms).ToString(@"m\:ss")
+        : IsPast ? "-" : "";
+
+    public string BossKillTimeBestDisplay => BossKillTimeBestMs is { } ms
         ? TimeSpan.FromMilliseconds(ms).ToString(@"m\:ss")
         : IsPast ? "-" : "";
 
@@ -202,10 +230,24 @@ public class SplitViewModel : BaseViewModel
 
     private bool _isEditingPb;
 
+    public bool IsEditingBossKillTimePb
+    {
+        get => _isEditingBossKillTimePb;
+        set
+        {
+            _isEditingBossKillTimePb = value;
+            OnPropertyChanged();
+        }
+    }
+
+    private bool _isEditingBossKillTimePb;
+
     public void RefreshLayout()
     {
         OnPropertyChanged(nameof(IsEditingPb));
         OnPropertyChanged(nameof(PersonalBest));
+        OnPropertyChanged(nameof(IsEditingBossKillTimePb));
+        OnPropertyChanged(nameof(BossKillTimeBestDisplay));
     }
 
     private void OnThemeChanged()

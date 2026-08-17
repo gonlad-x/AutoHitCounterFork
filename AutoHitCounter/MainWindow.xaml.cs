@@ -192,7 +192,30 @@ namespace AutoHitCounter
                     var clickedSplit = clickedItem?.DataContext as SplitViewModel;
 
                     vm.CommitPbEdit(editingPbSplit, pbBox?.Text ?? editingPbSplit.PersonalBest.ToString());
-                    
+
+                    if (clickedSplit != null)
+                    {
+                        var newSplit = vm.Splits.FirstOrDefault(s => s.Name == clickedSplit.Name);
+                        if (newSplit != null)
+                            vm.SelectedSplit = newSplit;
+                    }
+                }
+            }
+
+            var editingBossTimePbSplit = vm.Splits.FirstOrDefault(s => s.IsEditingBossKillTimePb);
+            if (editingBossTimePbSplit != null)
+            {
+                var bossTimePbBox = FindRenameBox(SplitListBox, editingBossTimePbSplit, "BossTimePbBox");
+                if (bossTimePbBox == null || (hit != null && !IsDescendantOf(bossTimePbBox, hit)))
+                {
+                    var clickedItem = hit != null
+                        ? VisualTreeHelpers.FindAncestor<ListBoxItem>(hit as DependencyObject)
+                        : null;
+                    var clickedSplit = clickedItem?.DataContext as SplitViewModel;
+
+                    vm.CommitBossKillTimePbEdit(editingBossTimePbSplit,
+                        bossTimePbBox?.Text ?? editingBossTimePbSplit.BossKillTimeBestDisplay);
+
                     if (clickedSplit != null)
                     {
                         var newSplit = vm.Splits.FirstOrDefault(s => s.Name == clickedSplit.Name);
@@ -267,6 +290,24 @@ namespace AutoHitCounter
             else if (e.Key == Key.Escape)
             {
                 split.IsEditingPb = false;
+                e.Handled = true;
+            }
+        }
+
+        private void BossTimePbBox_KeyDown(object sender, KeyEventArgs e)
+        {
+            if (sender is not TextBox box) return;
+            if (box.DataContext is not SplitViewModel split) return;
+
+            if (e.Key == Key.Enter)
+            {
+                if (DataContext is MainViewModel vm)
+                    vm.CommitBossKillTimePbEdit(split, box.Text);
+                e.Handled = true;
+            }
+            else if (e.Key == Key.Escape)
+            {
+                split.IsEditingBossKillTimePb = false;
                 e.Handled = true;
             }
         }
