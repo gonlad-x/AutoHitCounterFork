@@ -61,9 +61,8 @@ public enum AsmScript
     DS3ClearThrowState,
     DS3RunStart,
     DS3NoInvasions,
-    DS3BossHealthBarLog,
 
-    
+
     SKCheckPlayerDead,
     SKHit,
     SKLethalFall,
@@ -80,7 +79,6 @@ public enum AsmScript
     SKSakuraDance,
     SKEventLog,
     SKRunStart,
-    SKBossHealthBarLog,
 
     EldenRingHit,
     EldenRingCheckPlayerDead,
@@ -98,5 +96,4 @@ public enum AsmScript
     EldenRingClearThrowState,
     EldenRingEventLog,
     EldenRingRunStart,
-    EldenRingBossHealthBarLog,
 }

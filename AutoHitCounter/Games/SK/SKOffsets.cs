@@ -102,6 +102,14 @@ public static class SKOffsets
 
         public const int BossGaugeNameId = 0x0;
         public const int BossGaugeHandle = 0x4;
+
+        // Separate 3-slot miniboss gauge array, found via Ghidra 2026-08-16
+        // (FUN_1408c51a0, the miniboss-side sibling of FUN_1408c4c80/BossGauge --
+        // "param_7"'s boss/miniboss discriminator flagged but not chased during
+        // the original 2026-08-14 session). Same 0xA8 stride/bounds check as
+        // BossGauge, just a different base offset -- same slot struct reused for
+        // a second array instance, so NameId/Handle offsets carry over unchanged.
+        public const int MiniBossGaugeSlotBase = 0x2C08;
     }
 
     // FieldInsSelector decode table, confirmed via Ghidra 2026-08-14 (DAT_143b0f360,
@@ -147,7 +155,6 @@ public static class SKOffsets
         public static nint ApplySpEffectDamage;
         public static nint SakuraDance;
         public static nint StartNewGame;
-        public static nint DisplayBossHealthBar;
     }
 
     public static class Functions
@@ -335,16 +342,6 @@ public static class SKOffsets
             _ => 0
         };
 
-        // Only confirmed for 1.6.0 (found via Ghidra, 2026-08-10) -- other versions
-        // fall back to AOB scanning only if the exe's FileVersion doesn't match any
-        // known SKVersion at all, so this hook simply won't install on 1.2.0-1.5.0
-        // until their offsets are confirmed too.
-        Hooks.DisplayBossHealthBar = moduleBase + Version switch
-        {
-            Version1_6_0 => 0x67C7C0,
-            _ => 0
-        };
-
         Hooks.StartNewGame = moduleBase + Version switch
         {
             Version1_2_0 => 0xD005C5,
@@ -436,7 +433,6 @@ public static class SKOffsets
         PrintOffset("SakuraDance", Hooks.SakuraDance);
         PrintOffset("SetEvent", Hooks.SetEvent);
         PrintOffset("StartNewGame", Hooks.StartNewGame);
-        PrintOffset("DisplayBossHealthBar", Hooks.DisplayBossHealthBar);
 
 
         Console.WriteLine("\n--- Functions ---");

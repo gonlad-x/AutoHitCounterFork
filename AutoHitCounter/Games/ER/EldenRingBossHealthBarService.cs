@@ -1,77 +1,88 @@
 //
 
-using System;
-using AutoHitCounter.Enums;
 using AutoHitCounter.Interfaces;
-using AutoHitCounter.Memory;
-using AutoHitCounter.Utilities;
-using static AutoHitCounter.Games.ER.EldenRingCustomCodeOffsets;
 using static AutoHitCounter.Games.ER.EldenRingOffsets;
 
 namespace AutoHitCounter.Games.ER;
 
-public class EldenRingBossHealthBarService(IMemoryService memoryService, HookManager hookManager)
+// Poll-based, not hook-based -- see project notes on why. In short: a poll can
+// never crash the game (a bad address just fails the read cleanly), unlike a
+// hook (a wrong or prematurely-installed hook can execute garbage as code).
+// Live-tested and confirmed matching the previous hook-based implementation
+// across real fights, both open-field and Legacy Dungeon (see
+// boss-entity-ids-data-mining.md for the full RE writeup and cross-validation
+// session this is built from).
+//
+// Reads CSFeManImp->bossHealthDisplays[0..2] directly: fmgId != -1 means the
+// slot is active, and a -1 -> real-value transition means a boss gauge just
+// appeared. fieldInsHandle.entityHandle is resolved to a live ChrIns* via the
+// exact same pure-read WorldChrMan.ChrSetPool walk TarnishedTool's own
+// (already-tested) ChrInsService.ChrInsByHandle uses -- no native function
+// call, no AllocateAndExecute, no address to AOB-scan for that step at all.
+// ChrIns.EntityId is then read directly for the real entity ID.
+public class EldenRingBossHealthBarService(IMemoryService memoryService)
 {
-    private const int RingSize = 512;
+    // Defaults to 0, not -1: the very first tick after attach never reports a
+    // spawn even if a boss gauge is already showing (tool attached mid-fight) --
+    // only a genuine -1 -> active transition observed across two ticks counts.
+    private readonly int[] _prevFmgId = new int[CSFeMan.BossHealthDisplaySlotCount];
 
-    private int _readIndex;
-
-    public void InstallHook()
-    {
-        var code = Base + BossHealthBarCode;
-        var bytes = AsmLoader.GetAsmBytes(AsmScript.EldenRingBossHealthBarLog);
-        var writeIndex = Base + BossHealthBarWriteIdx;
-        var buffer = Base + BossHealthBarBuffer;
-        var hookLoc = Hooks.DisplayBossHealthBar;
-
-        // Layout differs from DS3/Sekiro's template by a leading `mov r10d, [rcx]`
-        // (3 bytes) -- ER's entity ID arrives as a pointer-to-int in RCX, not the
-        // value directly (confirmed live 2026-08-13: capturing RCX's raw bits
-        // produced a garbage ~2.1 billion "entity ID"). Dereferencing into R10D
-        // rather than RCX itself is deliberate: the function's own very next
-        // instruction (`MOV RDI, RCX`) needs the original pointer intact, or the
-        // game's own boss-health-bar display breaks along with our capture.
-        AsmHelper.WriteRelativeOffsets(bytes, [
-            (code + 0x5, writeIndex, 6, 0x5 + 2),
-            (code + 0xB, buffer, 7, 0xB + 3),
-            (code + 0x21, writeIndex, 6, 0x21 + 2),
-            (code + 0x2E, hookLoc + 5, 5, 0x2E + 1)
-        ]);
-
-        memoryService.WriteBytes(code, bytes);
-        hookManager.InstallHook(code, hookLoc, [0x48, 0x89, 0x5C, 0x24, 0x08]);
-    }
-
-    // Restarting the timer from the latest spawn is the desired behavior (a retry
-    // before the kill flag fires should reset the clock), so only the most recent
-    // ring entry since the last poll is returned -- older entries in between are
-    // deliberately discarded, not queued.
     public bool TryGetLatestSpawn(out uint entityId)
     {
         entityId = 0;
-        var writeIndex = memoryService.Read<int>(Base + BossHealthBarWriteIdx);
-        if (writeIndex == _readIndex) return false;
 
-        var entriesToRead = (writeIndex - _readIndex) & (RingSize - 1);
-        var dataBytes = ReadWrapping(entriesToRead);
+        var csFeMan = memoryService.Read<nint>(CSFeMan.Base);
+        if (csFeMan == 0) return false;
 
-        entityId = BitConverter.ToUInt32(dataBytes, (entriesToRead - 1) * 4);
-        _readIndex = writeIndex;
-        return true;
+        for (var slot = 0; slot < CSFeMan.BossHealthDisplaySlotCount; slot++)
+        {
+            var slotBase = csFeMan + CSFeMan.BossHealthDisplaySlotBase + slot * CSFeMan.BossHealthDisplayStride;
+            var fmgId = memoryService.Read<int>(slotBase + CSFeMan.BossHealthDisplayFmgId);
+
+            if (fmgId == -1)
+            {
+                _prevFmgId[slot] = -1;
+                continue;
+            }
+
+            if (_prevFmgId[slot] != -1) continue;
+
+            // fmgId and entityHandle aren't necessarily written in the same
+            // tick -- if entityHandle isn't ready yet, leave _prevFmgId[slot]
+            // at -1 (don't mark this activation as seen) so the next tick
+            // retries instead of permanently missing the spawn.
+            var entityHandle = memoryService.Read<int>(slotBase + CSFeMan.BossHealthDisplayEntityHandle);
+            if (entityHandle == -1) continue;
+
+            if (!TryResolveEntityId(entityHandle, out entityId)) continue;
+
+            _prevFmgId[slot] = fmgId;
+            return true;
+        }
+
+        return false;
     }
 
-    private byte[] ReadWrapping(int entriesToRead)
+    private bool TryResolveEntityId(int entityHandle, out uint entityId)
     {
-        var logBuffer = Base + BossHealthBarBuffer;
-        var tail = RingSize - _readIndex;
-        if (entriesToRead <= tail)
-            return memoryService.ReadBytes(logBuffer + (_readIndex * 4), entriesToRead * 4);
+        entityId = 0;
 
-        var part1 = memoryService.ReadBytes(logBuffer + (_readIndex * 4), tail * 4);
-        var part2 = memoryService.ReadBytes(logBuffer, (entriesToRead - tail) * 4);
-        var result = new byte[entriesToRead * 4];
-        part1.CopyTo(result, 0);
-        part2.CopyTo(result, part1.Length);
-        return result;
+        var poolIndex = (entityHandle >> 20) & 0xFF;
+        var slotIndex = entityHandle & 0xFFFFF;
+
+        var worldChrMan = memoryService.Read<nint>(WorldChrMan.Base);
+        if (worldChrMan == 0) return false;
+
+        var chrSet = memoryService.Read<nint>(worldChrMan + WorldChrMan.ChrSetPool + poolIndex * 8);
+        if (chrSet == 0) return false;
+
+        var entriesBase = memoryService.Read<nint>(chrSet + WorldChrMan.ChrSetEntries);
+        if (entriesBase == 0) return false;
+
+        var chrIns = memoryService.Read<nint>(entriesBase + slotIndex * 16);
+        if (chrIns == 0) return false;
+
+        entityId = (uint)memoryService.Read<int>(chrIns + WorldChrMan.ChrIns.EntityId);
+        return true;
     }
 }
