@@ -24,6 +24,7 @@ public class ManualGameModule : IGameModule, IDisposable
     public event Action OnRunStart;
     public event Action<uint> OnBossHealthBarSpawn;
     public event Action OnBossGaugeActivated;
+    public event Action OnGameUnloaded;
 
     public ManualGameModule()
     {
@@ -70,5 +71,6 @@ public class ManualGameModule : IGameModule, IDisposable
         OnRunStart = null;
         OnBossHealthBarSpawn = null;
         OnBossGaugeActivated = null;
+        OnGameUnloaded = null;
     }
 }

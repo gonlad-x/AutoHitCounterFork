@@ -24,6 +24,7 @@ public class SKModule : IGameModule, IDisposable, IVersionedGameModule
     public string GameVersion => SKOffsets.IsAobFallback ? "Unknown Patch" : SKOffsets.Version.GetDescription();
 
     private DateTime? _lastHit;
+    private bool _wasLoaded;
     private SKHitService _hitService;
     private SKEventService _eventService;
     private SKSettingsService _settingsService;
@@ -39,6 +40,7 @@ public class SKModule : IGameModule, IDisposable, IVersionedGameModule
     public event Action OnVersionDetected;
     public event Action<uint> OnBossHealthBarSpawn;
     public event Action OnBossGaugeActivated;
+    public event Action OnGameUnloaded;
 
     public SKModule(IMemoryService memoryService, IStateService stateService, HookManager hookManager,
         ITickService tickService, Dictionary<uint, (string Name, int Required, int Hit)> events, IHitRulesProvider rules)
@@ -111,7 +113,11 @@ public class SKModule : IGameModule, IDisposable, IVersionedGameModule
     {
         if (_runStartService.IsNewGameStarted()) OnRunStart?.Invoke();
 
-        if (!IsLoaded()) return;
+        var isLoaded = IsLoaded();
+        if (_wasLoaded && !isLoaded) OnGameUnloaded?.Invoke();
+        _wasLoaded = isLoaded;
+
+        if (!isLoaded) return;
 
         if (_hitService.HasHit() && (_lastHit == null || (DateTime.Now - _lastHit.Value).TotalSeconds > 3))
         {
@@ -152,6 +158,7 @@ public class SKModule : IGameModule, IDisposable, IVersionedGameModule
         OnRunStart = null;
         OnBossHealthBarSpawn = null;
         OnBossGaugeActivated = null;
+        OnGameUnloaded = null;
     }
 
     public void UpdateEvents(Dictionary<uint, (string Name, int Required, int Hit)> events)

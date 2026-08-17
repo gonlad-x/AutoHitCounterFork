@@ -21,6 +21,12 @@ public interface IGameModule
     // the same semantics MainViewModel's manual ToggleBossTimer hotkey already uses.
     event Action OnBossGaugeActivated;
 
+    // Fires exactly once on the tick IsLoaded() transitions from true to false --
+    // i.e. the player just left the game world (quitout to title, or any other
+    // full unload). Used to reset an actively-running boss timer rather than
+    // leaving it ticking against a stale reference once the world reloads.
+    event Action OnGameUnloaded;
+
     void UpdateEvents(Dictionary<uint, (string Name, int Required, int Hit)> events);
     void ApplySettings(bool onlyEnabled = false);
     void SetEventLogEnabled(bool enabled);
