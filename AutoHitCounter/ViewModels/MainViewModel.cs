@@ -137,6 +137,8 @@ namespace AutoHitCounter.ViewModels
 
         public DelegateCommand ResetSelectedSplitBossTimerCommand { get; set; }
 
+        public DelegateCommand RestoreSelectedSplitBossTimerCommand { get; set; }
+
         public DelegateCommand RenameSelectedSplitCommand { get; set; }
 
         public DelegateCommand EditAttemptsCommand { get; set; }
@@ -622,6 +624,33 @@ namespace AutoHitCounter.ViewModels
                 _overlayServerService.BroadcastState(OverlayMapper.MapFrom(this));
             });
 
+            // Recovers whatever BossKillTimeMs was showing right before the last
+            // non-kill clear (ResetBossTimer, HandleGameUnloaded, or the IGT-rewind
+            // guard) wiped it -- see SnapshotBossTimerRestore. Lands paused (not
+            // live-ticking): there's no sane igt reference left to resume a live
+            // segment from after time has passed, so this mirrors ToggleBossTimer's
+            // own paused-display state. Resume via the ToggleBossTimer hotkey if
+            // wanted, same as any other paused timer.
+            RestoreSelectedSplitBossTimerCommand = new DelegateCommand(() =>
+            {
+                if (SelectedSplit == null || SelectedSplit.IsParent) return;
+                if (SelectedSplit.BossKillTimeRestoreMs is not { } restoreMs) return;
+
+                var entry = GetActiveProfileSplitEntry(SelectedSplit);
+                if (!IsBossTimerEligible(entry)) return;
+
+                _bossTimerStartIgtMs = null;
+                _bossTimerAccumulatedMs = restoreMs;
+                _bossTimerIsPaused = true;
+                _bossTimerSplit = SelectedSplit;
+                _bossTimerFlag = entry.EventId;
+                _bossTimerAwaitingRestoreResume = true;
+
+                SelectedSplit.BossKillTimeMs = restoreMs;
+                SaveRunState();
+                _overlayServerService.BroadcastState(OverlayMapper.MapFrom(this));
+            });
+
             ClearTotalPbCommand = new DelegateCommand(() =>
             {
                 var confirmed = MsgBox.ShowOkCancel("This will clear all personal bests. Are you sure?", "Clear PBs");
@@ -738,6 +767,14 @@ namespace AutoHitCounter.ViewModels
         private SplitViewModel _bossTimerSplit;
         private uint? _bossTimerFlag;          // EventId of the fight currently being timed, for phase-transition detection
 
+        // True only right after Restore Timer lands a split paused. A deliberate
+        // ToggleBossTimer pause should stay frozen until the user explicitly resumes
+        // it (a stray healthbar re-trigger shouldn't silently resume a break taken on
+        // purpose) -- but a Restore-paused timer exists specifically to pick back up
+        // where an unintentional reset left off, so the next real encounter of the
+        // same flag should resume it automatically instead of sitting frozen forever.
+        private bool _bossTimerAwaitingRestoreResume;
+
         private void HandleBossHealthBarSpawn(uint entityId)
         {
             if (!IsBossTimeTrackersEnabled(_selectedGame)) return;
@@ -770,7 +807,15 @@ namespace AutoHitCounter.ViewModels
                 // wipes, the clock only resets via an explicit action -- the Reset Boss Timer
                 // hotkey, or resetting the split/run.
                 if (_bossTimerFlag == entry.EventId.Value)
+                {
+                    if (_bossTimerAwaitingRestoreResume)
+                    {
+                        _bossTimerStartIgtMs = (long)InGameTime.TotalMilliseconds;
+                        _bossTimerIsPaused = false;
+                        _bossTimerAwaitingRestoreResume = false;
+                    }
                     return;
+                }
 
                 _bossTimerStartIgtMs = (long)InGameTime.TotalMilliseconds;
                 _bossTimerAccumulatedMs = 0;
@@ -800,7 +845,16 @@ namespace AutoHitCounter.ViewModels
             var entry = GetActiveProfileSplitEntry(CurrentSplit);
             if (!IsBossTimerEligible(entry)) return;
 
-            if (_bossTimerSplit == CurrentSplit) return;
+            if (_bossTimerSplit == CurrentSplit)
+            {
+                if (_bossTimerAwaitingRestoreResume)
+                {
+                    _bossTimerStartIgtMs = (long)InGameTime.TotalMilliseconds;
+                    _bossTimerIsPaused = false;
+                    _bossTimerAwaitingRestoreResume = false;
+                }
+                return;
+            }
 
             _bossTimerStartIgtMs = (long)InGameTime.TotalMilliseconds;
             _bossTimerAccumulatedMs = 0;
@@ -826,6 +880,7 @@ namespace AutoHitCounter.ViewModels
             if (_bossTimerSplit == null) return;
 
             var split = _bossTimerSplit;
+            SnapshotBossTimerRestore(split);
             ClearBossTimerState();
             split.BossKillTimeMs = null;
 
@@ -850,6 +905,7 @@ namespace AutoHitCounter.ViewModels
                 {
                     _bossTimerStartIgtMs = (long)InGameTime.TotalMilliseconds;
                     _bossTimerIsPaused = false;
+                    _bossTimerAwaitingRestoreResume = false;
                 }
                 else
                 {
@@ -890,6 +946,8 @@ namespace AutoHitCounter.ViewModels
 
             var entry = GetActiveProfileSplitEntry(CurrentSplit);
             if (!IsBossTimerEligible(entry)) return;
+
+            SnapshotBossTimerRestore(CurrentSplit);
 
             if (_bossTimerSplit == CurrentSplit)
                 ClearBossTimerState();
@@ -967,6 +1025,16 @@ namespace AutoHitCounter.ViewModels
             _bossTimerIsPaused = false;
             _bossTimerSplit = null;
             _bossTimerFlag = null;
+            _bossTimerAwaitingRestoreResume = false;
+        }
+
+        // Called right before a clear that would otherwise just discard whatever
+        // BossKillTimeMs was showing (as opposed to StopBossTimer's proper finalize
+        // path, which already logs it). Backs up the live/paused value so "Restore
+        // Timer" can recover it later.
+        private static void SnapshotBossTimerRestore(SplitViewModel split)
+        {
+            if (split?.BossKillTimeMs is { } ms) split.BossKillTimeRestoreMs = ms;
         }
 
         private SplitEntry GetActiveProfileSplitEntry(SplitViewModel split)
@@ -1031,6 +1099,7 @@ namespace AutoHitCounter.ViewModels
                 if (newElapsed < 0)
                 {
                     var split = _bossTimerSplit;
+                    SnapshotBossTimerRestore(split);
                     ClearBossTimerState();
                     split.BossKillTimeMs = null;
                     return;
