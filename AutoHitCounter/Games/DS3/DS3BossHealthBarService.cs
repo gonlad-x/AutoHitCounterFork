@@ -1,70 +1,99 @@
 //
 
-using System;
-using AutoHitCounter.Enums;
 using AutoHitCounter.Interfaces;
-using AutoHitCounter.Memory;
-using AutoHitCounter.Utilities;
-using static AutoHitCounter.Games.DS3.DS3CustomCodeOffsets;
 using static AutoHitCounter.Games.DS3.DS3Offsets;
 
 namespace AutoHitCounter.Games.DS3;
 
-public class DS3BossHealthBarService(IMemoryService memoryService, HookManager hookManager)
+// Poll-based, not hook-based -- see project notes on why. In short: a poll can
+// never crash the game (a bad address just fails the read cleanly), unlike a
+// hook (a wrong or prematurely-installed hook can execute garbage as code).
+// Live-tested and confirmed matching the previous hook-based implementation
+// across real fights (including a multi-entity duo, Crucible Knight & Ordovis --
+// see boss-entity-ids-data-mining.md for that cross-validation session and the
+// full RE writeup this is built from).
+//
+// Reads MenuMan->BossGauge[0..2] directly: NameId != -1 means the slot is
+// active, and a -1 -> real-value transition means a boss gauge just appeared.
+// Handle is a FieldInsSelector (a packed block-index/instance-index value
+// shared engine-wide across DS3/Sekiro/ER, not an opaque handle), decoded here
+// for the CHR category and resolved to a live ChrIns* via a pure
+// WorldChrManImp struct-walk that replicates the native resolver's own logic
+// rather than calling it -- no native function address ever needs resolving
+// or AOB-scanning for this path. ChrIns.EntityId is then read directly for the
+// real entity ID.
+public class DS3BossHealthBarService(IMemoryService memoryService)
 {
-    private const int RingSize = 512;
+    // Defaults to 0, not -1: the very first tick after attach never reports a
+    // spawn even if a boss gauge is already showing (tool attached mid-fight) --
+    // only a genuine -1 -> active transition observed across two ticks counts.
+    private readonly int[] _prevNameId = new int[MenuMan.BossGaugeSlotCount];
 
-    private int _readIndex;
-
-    public void InstallHook()
-    {
-        var code = Base + BossHealthBarCode;
-        var bytes = AsmLoader.GetAsmBytes(AsmScript.DS3BossHealthBarLog);
-        var writeIndex = Base + BossHealthBarWriteIdx;
-        var buffer = Base + BossHealthBarBuffer;
-        var hookLoc = Hooks.DisplayBossHealthBar;
-
-        AsmHelper.WriteRelativeOffsets(bytes, [
-            (code + 0x2, writeIndex, 6, 0x2 + 2),
-            (code + 0x8, buffer, 7, 0x8 + 3),
-            (code + 0x1D, writeIndex, 6, 0x1D + 2),
-            (code + 0x2A, hookLoc + 5, 5, 0x2A + 1)
-        ]);
-
-        memoryService.WriteBytes(code, bytes);
-        hookManager.InstallHook(code, hookLoc, [0x48, 0x89, 0x5C, 0x24, 0x10]);
-    }
-
-    // Restarting the timer from the latest spawn is the desired behavior (a retry
-    // before the kill flag fires should reset the clock), so only the most recent
-    // ring entry since the last poll is returned -- older entries in between are
-    // deliberately discarded, not queued.
     public bool TryGetLatestSpawn(out uint entityId)
     {
         entityId = 0;
-        var writeIndex = memoryService.Read<int>(Base + BossHealthBarWriteIdx);
-        if (writeIndex == _readIndex) return false;
 
-        var entriesToRead = (writeIndex - _readIndex) & (RingSize - 1);
-        var dataBytes = ReadWrapping(entriesToRead);
+        var menuMan = memoryService.Read<nint>(MenuMan.Base);
+        if (menuMan == 0) return false;
 
-        entityId = BitConverter.ToUInt32(dataBytes, (entriesToRead - 1) * 4);
-        _readIndex = writeIndex;
-        return true;
+        for (var slot = 0; slot < MenuMan.BossGaugeSlotCount; slot++)
+        {
+            var slotBase = menuMan + MenuMan.BossGaugeSlotBase + slot * MenuMan.BossGaugeStride;
+            var nameId = memoryService.Read<int>(slotBase + MenuMan.BossGaugeNameId);
+
+            if (nameId == -1)
+            {
+                _prevNameId[slot] = -1;
+                continue;
+            }
+
+            if (_prevNameId[slot] != -1) continue;
+
+            // NameId and Handle aren't necessarily written in the same tick --
+            // if Handle isn't ready yet, leave _prevNameId[slot] at -1 (don't
+            // mark this activation as seen) so the next tick retries instead of
+            // permanently missing the spawn.
+            var handle = memoryService.Read<int>(slotBase + MenuMan.BossGaugeHandle);
+            if (handle == -1) continue;
+
+            if (!TryResolveEntityId(handle, out entityId)) continue;
+
+            _prevNameId[slot] = nameId;
+            return true;
+        }
+
+        return false;
     }
 
-    private byte[] ReadWrapping(int entriesToRead)
+    private bool TryResolveEntityId(int handle, out uint entityId)
     {
-        var logBuffer = Base + BossHealthBarBuffer;
-        var tail = RingSize - _readIndex;
-        if (entriesToRead <= tail)
-            return memoryService.ReadBytes(logBuffer + (_readIndex * 4), entriesToRead * 4);
+        entityId = 0;
 
-        var part1 = memoryService.ReadBytes(logBuffer + (_readIndex * 4), tail * 4);
-        var part2 = memoryService.ReadBytes(logBuffer, (entriesToRead - tail) * 4);
-        var result = new byte[entriesToRead * 4];
-        part1.CopyTo(result, 0);
-        part2.CopyTo(result, part1.Length);
-        return result;
+        // FieldInsSelector decode -- top 4 bits select the category (CHR = 1);
+        // anything else isn't a character and can't resolve to a ChrIns at all.
+        var mapType = (uint)handle >> 28;
+        if (mapType != FieldInsMapping.ChrMapType) return false;
+
+        var blockIndex = ((uint)handle >> FieldInsMapping.ChrBlockIndexShift) & FieldInsMapping.ChrBlockIndexMask;
+        var fieldInsIndex = (uint)handle & FieldInsMapping.ChrFieldInsIndexMask;
+
+        var worldChrManImp = memoryService.Read<nint>(WorldChrMan.Base);
+        if (worldChrManImp == 0) return false;
+
+        var blockPtr = memoryService.Read<nint>(
+            worldChrManImp + WorldChrMan.WorldBlockChr0 + (nint)blockIndex * 8);
+        if (blockPtr == 0) return false;
+
+        var count = memoryService.Read<int>(blockPtr + WorldBlockChr.Count);
+        if (fieldInsIndex >= count) return false;
+
+        var entriesPtr = memoryService.Read<nint>(blockPtr + WorldBlockChr.Entries);
+        if (entriesPtr == 0) return false;
+
+        var chrIns = memoryService.Read<nint>(entriesPtr + (nint)fieldInsIndex * WorldBlockChr.EntryStride);
+        if (chrIns == 0) return false;
+
+        entityId = (uint)memoryService.Read<int>(chrIns + WorldChrMan.ChrIns.EntityId);
+        return true;
     }
 }

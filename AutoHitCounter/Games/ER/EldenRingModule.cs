@@ -25,7 +25,6 @@ public class EldenRingModule : IGameModule, IDisposable, IVersionedGameModule
     private EventLogReader _eventLogReader;
     private IRunStartService _runStartService;
     private EldenRingBossHealthBarService _bossHealthBarService;
-    private EldenRingBossGaugeService _bossGaugeService;
 
     public string GameVersion => EldenRingOffsets.IsAobFallback ? "Unknown Patch" : EldenRingOffsets.Version.GetDescription();
 
@@ -71,8 +70,7 @@ public class EldenRingModule : IGameModule, IDisposable, IVersionedGameModule
             Base + EventLogWriteIdx,
             Base + EventLogBuffer);
         _runStartService = new EldenRingRunStartService(_memoryService, _hookManager);
-        _bossHealthBarService = new EldenRingBossHealthBarService(_memoryService, _hookManager);
-        _bossGaugeService = new EldenRingBossGaugeService(_memoryService);
+        _bossHealthBarService = new EldenRingBossHealthBarService(_memoryService);
         _eventLogReader.EntriesReceived += entries => OnEventLogEntriesReceived?.Invoke(entries);
 
         ApplySettings(onlyEnabled: true);
@@ -80,7 +78,6 @@ public class EldenRingModule : IGameModule, IDisposable, IVersionedGameModule
         _eventService.InstallHook();
         _hitService.InstallHooks();
         _runStartService.InstallHook();
-        _bossHealthBarService.InstallHook();
 
         _tickService.RegisterGameTick(Tick);
         
@@ -102,7 +99,7 @@ public class EldenRingModule : IGameModule, IDisposable, IVersionedGameModule
     private void Tick()
     {
         if (_runStartService.IsNewGameStarted()) OnRunStart?.Invoke();
-        
+
         if (!IsLoaded())
         {
             _hitService.ResetFlags();
@@ -124,22 +121,8 @@ public class EldenRingModule : IGameModule, IDisposable, IVersionedGameModule
 
         if (_bossHealthBarService.TryGetLatestSpawn(out var entityId))
         {
-#if DEBUG
-            MsgBox.Show($"[HOOK] entity ID: {entityId}", "ER Boss Gauge Cross-Validation");
-#endif
             OnBossHealthBarSpawn?.Invoke(entityId);
         }
-
-        // TEMPORARY cross-validation of the new poll-based EldenRingBossGaugeService
-        // against the live hook above -- not wired into OnBossHealthBarSpawn yet.
-        // Remove once confirmed to agree with the hook across real fights (see
-        // boss-entity-ids-data-mining.md).
-#if DEBUG
-        if (_bossGaugeService.TryGetLatestSpawn(out var pollEntityId))
-        {
-            MsgBox.Show($"[POLL] entity ID: {pollEntityId}", "ER Boss Gauge Cross-Validation");
-        }
-#endif
 
         _eventLogReader.Poll();
 
