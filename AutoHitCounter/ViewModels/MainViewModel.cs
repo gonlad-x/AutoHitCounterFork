@@ -769,6 +769,21 @@ namespace AutoHitCounter.ViewModels
             AttachedText = _orchestrator.AttachedText;
             AttachmentStatus = _orchestrator.AttachmentStatus;
             OnPropertyChanged(nameof(TrackingText));
+
+            // The auto-split event dictionary lives in the module's event service, which
+            // is created lazily when the game attaches (module Initialize on
+            // State.Attached), seeded from the events snapshot captured back at Track()
+            // time. Any UpdateEvents call made before the service exists -- e.g. a Reset
+            // done while the tool was still attaching/loading in -- silently no-ops
+            // against the null service and is lost, so the first run's dictionary stays
+            // stale (the boss being fought can be pre-marked as already-hit). Re-push the
+            // current events once attached so those pre-attach changes actually take
+            // effect. Idempotent and safe: it's the same call already made on every
+            // split/profile change, GetActiveEvents recomputes Hit from the live cursor,
+            // and it null-safely no-ops on the earlier AttachmentChanged fires that occur
+            // before the service is created.
+            if (_orchestrator.IsAttached && _orchestrator.ActiveGame == _selectedGame)
+                _orchestrator.UpdateEvents(GetActiveEvents());
         }
 
         private void StartTrackingGame()
