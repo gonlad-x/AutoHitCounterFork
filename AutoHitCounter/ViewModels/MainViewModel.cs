@@ -3,6 +3,7 @@
 using System;
 using System.Collections.Generic;
 using System.Collections.ObjectModel;
+using System.Diagnostics;
 using System.Globalization;
 using System.IO;
 using System.Linq;
@@ -646,7 +647,7 @@ namespace AutoHitCounter.ViewModels
                 var entry = GetActiveProfileSplitEntry(SelectedSplit);
                 if (!IsBossTimerEligible(entry)) return;
 
-                _bossTimerStartIgtMs = null;
+                _bossTimerStartMs = null;
                 _bossTimerAccumulatedMs = restoreMs;
                 _bossTimerIsPaused = true;
                 _bossTimerSplit = SelectedSplit;
@@ -807,7 +808,14 @@ namespace AutoHitCounter.ViewModels
             _splitNav.Advance();
         }
 
-        private long? _bossTimerStartIgtMs;   // IGT when the current running segment began; null while paused/stopped
+        // Boss-timer clock: real (wall-clock) elapsed time, not IGT -- a boss fight's
+        // duration is measured in actual seconds regardless of the game's IGT trajectory.
+        // Monotonic (Stopwatch), so a segment delta can never go negative the way an
+        // IGT-based one could when IGT rewound on a quitout.
+        private readonly Stopwatch _bossTimerClock = Stopwatch.StartNew();
+        private long BossClockMs => _bossTimerClock.ElapsedMilliseconds;
+
+        private long? _bossTimerStartMs;      // BossClockMs when the current running segment began; null while paused/stopped
         private long _bossTimerAccumulatedMs; // elapsed folded in from segments before the current one
         private bool _bossTimerIsPaused;
         private SplitViewModel _bossTimerSplit;
@@ -856,14 +864,14 @@ namespace AutoHitCounter.ViewModels
                 {
                     if (_bossTimerAwaitingRestoreResume)
                     {
-                        _bossTimerStartIgtMs = (long)InGameTime.TotalMilliseconds;
+                        _bossTimerStartMs = BossClockMs;
                         _bossTimerIsPaused = false;
                         _bossTimerAwaitingRestoreResume = false;
                     }
                     return;
                 }
 
-                _bossTimerStartIgtMs = (long)InGameTime.TotalMilliseconds;
+                _bossTimerStartMs = BossClockMs;
                 _bossTimerAccumulatedMs = 0;
                 _bossTimerIsPaused = false;
                 _bossTimerSplit = i < Splits.Count ? Splits[i] : null;
@@ -895,14 +903,14 @@ namespace AutoHitCounter.ViewModels
             {
                 if (_bossTimerAwaitingRestoreResume)
                 {
-                    _bossTimerStartIgtMs = (long)InGameTime.TotalMilliseconds;
+                    _bossTimerStartMs = BossClockMs;
                     _bossTimerIsPaused = false;
                     _bossTimerAwaitingRestoreResume = false;
                 }
                 return;
             }
 
-            _bossTimerStartIgtMs = (long)InGameTime.TotalMilliseconds;
+            _bossTimerStartMs = BossClockMs;
             _bossTimerAccumulatedMs = 0;
             _bossTimerIsPaused = false;
             _bossTimerSplit = CurrentSplit;
@@ -912,14 +920,15 @@ namespace AutoHitCounter.ViewModels
 
         // Fires when the player leaves the game world (quitout to title, or any other
         // full unload) while a boss timer is actively tracking a split -- resets it
-        // rather than leaving it running/paused against a now-stale IGT reference.
+        // rather than leaving a real-time clock running across the reload. This is now
+        // the sole quitout-reset mechanism: the boss timer measures real time
+        // (BossClockMs) instead of IGT, so the old IGT-rewind guard in UpdateInGameTime
+        // (which existed only because IGT could jump backwards on reload) is gone.
         // Deliberately narrower than the "no auto-reset on retry" policy elsewhere in
         // this file (see HandleBossHealthBarSpawn): that policy is about not confusing
         // a genuine phase transition/reshow for a wipe, but a full game-world unload is
         // an unambiguous signal the current attempt ended, not a case that policy was
-        // meant to protect. Complements the IGT-rewind guard in UpdateInGameTime, which
-        // still catches the case where the world reloads with IGT rewound before this
-        // event's own IsLoaded()-transition would otherwise be observed.
+        // meant to protect.
         private void HandleGameUnloaded()
         {
             if (_selectedGame != _orchestrator.ActiveGame) return;
@@ -949,15 +958,15 @@ namespace AutoHitCounter.ViewModels
             {
                 if (_bossTimerIsPaused)
                 {
-                    _bossTimerStartIgtMs = (long)InGameTime.TotalMilliseconds;
+                    _bossTimerStartMs = BossClockMs;
                     _bossTimerIsPaused = false;
                     _bossTimerAwaitingRestoreResume = false;
                 }
                 else
                 {
-                    if (_bossTimerStartIgtMs is { } startMs)
-                        _bossTimerAccumulatedMs += (long)InGameTime.TotalMilliseconds - startMs;
-                    _bossTimerStartIgtMs = null;
+                    if (_bossTimerStartMs is { } startMs)
+                        _bossTimerAccumulatedMs += BossClockMs - startMs;
+                    _bossTimerStartMs = null;
                     _bossTimerIsPaused = true;
                     CurrentSplit.BossKillTimeMs = _bossTimerAccumulatedMs;
                     SaveRunState();
@@ -968,7 +977,7 @@ namespace AutoHitCounter.ViewModels
             var entry = GetActiveProfileSplitEntry(CurrentSplit);
             if (!IsBossTimerEligible(entry)) return;
 
-            _bossTimerStartIgtMs = (long)InGameTime.TotalMilliseconds;
+            _bossTimerStartMs = BossClockMs;
             _bossTimerAccumulatedMs = 0;
             _bossTimerIsPaused = false;
             _bossTimerSplit = CurrentSplit;
@@ -1010,8 +1019,8 @@ namespace AutoHitCounter.ViewModels
             if (split == null) return;
 
             var elapsed = _bossTimerAccumulatedMs;
-            if (!_bossTimerIsPaused && _bossTimerStartIgtMs is { } startMs)
-                elapsed += (long)InGameTime.TotalMilliseconds - startMs;
+            if (!_bossTimerIsPaused && _bossTimerStartMs is { } startMs)
+                elapsed += BossClockMs - startMs;
 
             ClearBossTimerState();
 
@@ -1062,7 +1071,7 @@ namespace AutoHitCounter.ViewModels
 
         private void ClearBossTimerState()
         {
-            _bossTimerStartIgtMs = null;
+            _bossTimerStartMs = null;
             _bossTimerAccumulatedMs = 0;
             _bossTimerIsPaused = false;
             _bossTimerSplit = null;
@@ -1118,34 +1127,17 @@ namespace AutoHitCounter.ViewModels
             }
 
             // Live-updates the current split's boss timer every tick while one is running,
-            // so it visibly ticks up during the fight and naturally freezes whenever IGT
-            // itself stops advancing (loading screens, detached, etc.) rather than only
-            // appearing once the kill flag fires. Throttled to once per displayed second
-            // (same as the IGT text above) so the overlay isn't broadcast 10x/second.
-            if (_bossTimerStartIgtMs is { } startMs && _bossTimerSplit != null)
+            // so it visibly ticks up during the fight. Measured off BossClockMs (real
+            // wall-clock time), not IGT, so it counts actual seconds regardless of the
+            // game's IGT trajectory; it only stops advancing when the timer is
+            // paused/stopped or ticks stop firing (detached). Throttled to once per
+            // displayed second (same as the IGT text above) so the overlay isn't
+            // broadcast 10x/second. No rewind guard needed: BossClockMs is monotonic, so
+            // the segment delta is always >= 0 (a quitout mid-fight is instead handled by
+            // HandleGameUnloaded resetting the timer outright).
+            if (_bossTimerStartMs is { } startMs && _bossTimerSplit != null)
             {
-                var newElapsed = _bossTimerAccumulatedMs + (igt - startMs);
-
-                // IGT reflects the save file's last checkpoint, not free-running real
-                // time -- quitting out without an intervening autosave (e.g. mid-fight)
-                // can make the readable IGT value drop on reload, discarding whatever
-                // progress was made since the last checkpoint. That rewinds igt behind
-                // this segment's own startMs, which would otherwise show as elapsed time
-                // going negative (visually: jumping to a positive number, counting down
-                // to 0, then counting back up as the new, lower igt trajectory catches
-                // back up to the old startMs). Confirmed live 2026-08-16 -- not caused by
-                // ResetRun/ClearBossTimerState (both ruled out via debug instrumentation).
-                // Treat a rewound segment as invalid rather than displaying it: clear
-                // tracking so the next genuine healthbar spawn starts a fresh segment
-                // from the post-reload igt baseline instead of computing nonsense.
-                if (newElapsed < 0)
-                {
-                    var split = _bossTimerSplit;
-                    SnapshotBossTimerRestore(split);
-                    ClearBossTimerState();
-                    split.BossKillTimeMs = null;
-                    return;
-                }
+                var newElapsed = _bossTimerAccumulatedMs + (BossClockMs - startMs);
 
                 var previousDisplay = _bossTimerSplit.BossKillTimeDisplay;
                 _bossTimerSplit.BossKillTimeMs = newElapsed;
