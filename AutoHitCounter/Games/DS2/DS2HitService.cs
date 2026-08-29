@@ -165,11 +165,11 @@ public class DS2HitService(IMemoryService memoryService, HookManager hookManager
         AsmHelper.WriteRelativeOffsets(bytes, [
             (code + 0x6, auxCheckFlag, 7, 0x6 + 2),
             (code + 0xF, auxCheckFlag, 7, 0xF + 2),
-            (code + 0x16, hit, 6, 0x16 + 2),
-            (code + 0x1E, wetPoisonFlag, 7, 0x1E + 2),
-            (code + 0x2C, wetPoisonFlag, 7, 0x2C + 2),
-            (code + 0x33, hit, 6, 0x33 + 2),
-            (code + 0x39, Hooks.CountAuxHit + 6, 5, 0x39 + 1)
+            (code + 0x1B, hit, 6, 0x1B + 2),
+            (code + 0x23, wetPoisonFlag, 7, 0x23 + 2),
+            (code + 0x31, wetPoisonFlag, 7, 0x31 + 2),
+            (code + 0x38, hit, 6, 0x38 + 2),
+            (code + 0x3E, Hooks.CountAuxHit + 6, 5, 0x3E + 1)
         ]);
 
         memoryService.WriteBytes(code, bytes);
@@ -288,13 +288,13 @@ public class DS2HitService(IMemoryService memoryService, HookManager hookManager
         AsmHelper.WriteImmediateDwords(bytes, [
             ((int)auxCheckFlag, 0x5 + 2),
             ((int)auxCheckFlag, 0xE + 2),
-            ((int)hit, 0x15 + 2),
-            ((int)wetPoisonFlag, 0x1D + 2),
-            ((int)wetPoisonFlag, 0x2B + 2),
-            ((int)hit, 0x32 + 2)
+            ((int)hit, 0x1A + 2),
+            ((int)wetPoisonFlag, 0x22 + 2),
+            ((int)wetPoisonFlag, 0x30 + 2),
+            ((int)hit, 0x37 + 2)
         ]);
 
-        AsmHelper.WriteRelativeOffset(bytes, code + 0x38, Hooks.CountAuxHit + 5, 5, 0x38 + 1);
+        AsmHelper.WriteRelativeOffset(bytes, code + 0x3D, Hooks.CountAuxHit + 5, 5, 0x3D + 1);
 
         memoryService.WriteBytes(code, bytes);
         InstallHook(code, Hooks.CountAuxHit, [0xF3, 0x0F, 0x10, 0x55, 0x0C]);

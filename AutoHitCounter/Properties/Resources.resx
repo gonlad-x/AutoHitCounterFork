@@ -1003,21 +1003,23 @@ e9 00 00 00 00          jmp    49 &lt;done+0x5&gt;</value>
     <value>4c 8b 01                mov    r8,QWORD PTR [rcx]
 48 63 c2                movsxd rax,edx
 80 3d 00 00 00 00 00    cmp    BYTE PTR [rip+0x0],0x0        # d &lt;_main+0xd&gt;
-74 0f                   je     1e &lt;check_wet&gt;
+74 14                   je     23 &lt;check_wet&gt;
 c6 05 00 00 00 00 00    mov    BYTE PTR [rip+0x0],0x0        # 16 &lt;_main+0x16&gt;
-ff 05 00 00 00 00       inc    DWORD PTR [rip+0x0]        # 1c &lt;_main+0x1c&gt;
-eb 1b                   jmp    39 &lt;skip&gt;
+83 fa 02                cmp    edx,0x2
+74 23                   je     3e &lt;skip&gt;
+ff 05 00 00 00 00       inc    DWORD PTR [rip+0x0]        # 21 &lt;_main+0x21&gt;
+eb 1b                   jmp    3e &lt;skip&gt;
 
-00000000001e &lt;check_wet&gt;:
-80 3d 00 00 00 00 00    cmp    BYTE PTR [rip+0x0],0x0        # 25 &lt;check_wet+0x7&gt;
-74 12                   je     39 &lt;skip&gt;
+000000000023 &lt;check_wet&gt;:
+80 3d 00 00 00 00 00    cmp    BYTE PTR [rip+0x0],0x0        # 2a &lt;check_wet+0x7&gt;
+74 12                   je     3e &lt;skip&gt;
 83 fa 00                cmp    edx,0x0
-75 0d                   jne    39 &lt;skip&gt;
-c6 05 00 00 00 00 00    mov    BYTE PTR [rip+0x0],0x0        # 33 &lt;check_wet+0x15&gt;
-ff 05 00 00 00 00       inc    DWORD PTR [rip+0x0]        # 39 &lt;skip&gt;
+75 0d                   jne    3e &lt;skip&gt;
+c6 05 00 00 00 00 00    mov    BYTE PTR [rip+0x0],0x0        # 38 &lt;check_wet+0x15&gt;
+ff 05 00 00 00 00       inc    DWORD PTR [rip+0x0]        # 3e &lt;skip&gt;
 
-000000000039 &lt;skip&gt;:
-e9 00 00 00 00          jmp    3e &lt;skip+0x5&gt;</value>
+00000000003e &lt;skip&gt;:
+e9 00 00 00 00          jmp    43 &lt;skip+0x5&gt;</value>
   </data>
   <data name="EldenRingCheckPlayerDead" xml:space="preserve">
     <value>48 8b 05 00 00 00 00    mov    rax,QWORD PTR [rip+0x0]        # 7 &lt;_main+0x7&gt;
@@ -2008,21 +2010,23 @@ c3                      ret</value>
   <data name="VanillaCountAuxHit" xml:space="preserve">
     <value>f3 0f 10 55 0c          movss  xmm2,DWORD PTR [ebp+0xc]
 80 3d 00 00 00 00 00    cmp    BYTE PTR ds:0x0,0x0
-74 0f                   je     1d &lt;check_wet&gt;
+74 14                   je     22 &lt;check_wet&gt;
 c6 05 00 00 00 00 00    mov    BYTE PTR ds:0x0,0x0
+83 f8 02                cmp    eax,0x2
+74 23                   je     3d &lt;skip&gt;
 ff 05 00 00 00 00       inc    DWORD PTR ds:0x0
-eb 1b                   jmp    38 &lt;skip&gt;
+eb 1b                   jmp    3d &lt;skip&gt;
 
-001d &lt;check_wet&gt;:
+0022 &lt;check_wet&gt;:
 80 3d 00 00 00 00 00    cmp    BYTE PTR ds:0x0,0x0
-74 12                   je     38 &lt;skip&gt;
+74 12                   je     3d &lt;skip&gt;
 83 f8 00                cmp    eax,0x0
-75 0d                   jne    38 &lt;skip&gt;
+75 0d                   jne    3d &lt;skip&gt;
 c6 05 00 00 00 00 00    mov    BYTE PTR ds:0x0,0x0
 ff 05 00 00 00 00       inc    DWORD PTR ds:0x0
 
-0038 &lt;skip&gt;:
-e9 fc ff ff ff          jmp    39 &lt;skip+0x1&gt;</value>
+003d &lt;skip&gt;:
+e9 fc ff ff ff          jmp    3e &lt;skip+0x1&gt;</value>
   </data>
   <data name="VanillaGeneralApplyDamage" xml:space="preserve">
     <value>8b 86 fc 00 00 00       mov    eax,DWORD PTR [esi+0xfc]

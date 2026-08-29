@@ -769,6 +769,10 @@ public class ProfileEditorViewModel : BaseViewModel, IReorderHandler
     {
         if (_selectedProfile == null) return;
 
+        var confirmed = MsgBox.ShowYesNo(
+        $"Are you sure you want to delete \"{_selectedProfile.Name}\"?",
+        "Delete Profile");
+        if (!confirmed) return;
         _profileService.DeleteProfile(_gameName, _selectedProfile.Name);
         Profiles.Remove(_selectedProfile);
         SelectedProfile = Profiles.FirstOrDefault();

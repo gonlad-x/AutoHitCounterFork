@@ -1,6 +1,4 @@
-﻿// 
-
-using System;
+﻿using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Text.Json;
@@ -12,7 +10,10 @@ namespace AutoHitCounter.Services;
 
 public class ProfileService : IProfileService
 {
+    private readonly Dictionary<string, List<Profile>> _defaultProfiles;
     private readonly Dictionary<string, List<Profile>> _profiles;
+    private readonly HashSet<string> _deletedDefaults;
+    
 
     private static readonly string UserProfilesPath = Path.Combine(
         Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData),
@@ -25,6 +26,8 @@ public class ProfileService : IProfileService
 
     public ProfileService()
     {
+        _defaultProfiles = LoadFromDisk(DefaultProfilesPath);
+        _deletedDefaults = LoadDeletedDefaults();
         _profiles = LoadMergedProfiles();
     }
 
@@ -49,6 +52,9 @@ public class ProfileService : IProfileService
         else
             list.Add(profile);
 
+        if (_deletedDefaults.Remove(TombstoneKey(profile.GameName, profile.Name)))
+            SaveDeletedDefaults(_deletedDefaults);
+
         TryWriteUserProfiles();
     }
 
@@ -56,6 +62,19 @@ public class ProfileService : IProfileService
     {
         if (!_profiles.TryGetValue(gameName, out var list)) return;
         list.RemoveAll(p => p.Name == profileName);
+        // Checking if game has default profiles to repopulate it with them on next launch if no profiles are found for said game
+        bool hasDefaults = _defaultProfiles.TryGetValue(gameName, out var defaults);
+        bool isDefault = hasDefaults && defaults.Exists(p => p.Name == profileName);
+
+        if (isDefault)
+            _deletedDefaults.Add(TombstoneKey(gameName, profileName));
+
+        if (list.Count == 0 && hasDefaults)
+            {
+                _deletedDefaults.RemoveWhere(k => k.StartsWith(gameName + "|", StringComparison.Ordinal));
+                _profiles[gameName] = defaults.ConvertAll(CloneProfile);
+            }
+        SaveDeletedDefaults(_deletedDefaults);
         TryWriteUserProfiles();
     }
 
@@ -70,16 +89,27 @@ public class ProfileService : IProfileService
 
         TryWriteUserProfiles();
     }
+    
+    private static string TombstoneKey(string gameName, string profileName) => $"{gameName}|{profileName}";
+
+    private static Profile CloneProfile(Profile source)
+    {
+        var json = JsonSerializer.Serialize(source);
+        return JsonSerializer.Deserialize<Profile>(json);
+    }
 
     private Dictionary<string, List<Profile>> LoadMergedProfiles()
     {
-        var defaults = LoadFromDisk(DefaultProfilesPath);
         var user = LoadFromDisk(UserProfilesPath);
 
         var merged = new Dictionary<string, List<Profile>>();
 
-        foreach (var kvp in defaults)
-            merged[kvp.Key] = new List<Profile>(kvp.Value);
+        foreach (var kvp in _defaultProfiles)
+        {
+            var kept = kvp.Value.FindAll(p => !_deletedDefaults.Contains(TombstoneKey(kvp.Key, p.Name)));
+            if (kept.Count > 0)
+                merged[kvp.Key] = kept.ConvertAll(CloneProfile);
+        }
 
         foreach (var kvp in user)
         {
@@ -148,7 +178,6 @@ public class ProfileService : IProfileService
                 else
                     File.Move(tempPath, UserProfilesPath);
             }
-
             catch (IOException ex)
             {
                 Logger.Error(ex, $"Failed to write profiles to '{UserProfilesPath}'.");
@@ -162,5 +191,26 @@ public class ProfileService : IProfileService
                 Logger.Error(ex, $"Unexpected error writing profiles to '{UserProfilesPath}'.");
             }
         }
+    }
+
+    private static HashSet<string> LoadDeletedDefaults()
+    {
+        var raw = SettingsManager.Default.DeletedDefaultProfiles;
+        if (string.IsNullOrWhiteSpace(raw)) return [];
+
+        try
+        {
+            return JsonSerializer.Deserialize<HashSet<string>>(raw) ?? [];
+        }
+        catch
+        {
+            return [];
+        }
+    }
+
+    private static void SaveDeletedDefaults(HashSet<string> deleted)
+    {
+        SettingsManager.Default.DeletedDefaultProfiles = JsonSerializer.Serialize(deleted);
+        SettingsManager.Default.Save();
     }
 }
