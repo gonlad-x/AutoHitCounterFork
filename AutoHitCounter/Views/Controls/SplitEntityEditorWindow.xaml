@@ -1,0 +1,240 @@
+<Window x:Class="AutoHitCounter.Views.Controls.SplitEntityEditorWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:controls="clr-namespace:AutoHitCounter.Views.Controls"
+        xmlns:converters="clr-namespace:AutoHitCounter.Converters"
+        Style="{StaticResource DefaultWindowStyle}"
+        WindowStyle="None"
+        AllowsTransparency="True"
+        Title="Edit Split Entity"
+        Height="470" Width="380"
+        ResizeMode="NoResize"
+        Background="Transparent">
+    <Window.Resources>
+        <converters:SizeToRectConverter x:Key="SizeToRectConverter"/>
+        <BooleanToVisibilityConverter x:Key="BoolToVisConverter" />
+    </Window.Resources>
+    <Border Background="{DynamicResource BackgroundBrush}"
+            BorderBrush="{DynamicResource AppBorderBrush}"
+            BorderThickness="1"
+            CornerRadius="3"
+            Margin="10"
+            ClipToBounds="True" >
+        <Border.Effect>
+            <DropShadowEffect BlurRadius="10" ShadowDepth="0" Opacity="0.5" />
+        </Border.Effect>
+
+        <Grid>
+            <Grid.Clip>
+            <RectangleGeometry RadiusX="5" RadiusY="5">
+            <RectangleGeometry.Rect>
+                <MultiBinding Converter="{StaticResource SizeToRectConverter}">
+                    <Binding Path="ActualWidth" RelativeSource="{RelativeSource AncestorType=Grid}"/>
+                    <Binding Path="ActualHeight" RelativeSource="{RelativeSource AncestorType=Grid}"/>
+                </MultiBinding>
+            </RectangleGeometry.Rect>
+        </RectangleGeometry>
+        </Grid.Clip>
+            <Grid.RowDefinitions>
+                <RowDefinition Height="30" />
+                <RowDefinition Height="*" />
+            </Grid.RowDefinitions>
+
+            <controls:TitleBar Grid.Row="0" Title="Edit Split Entity" />
+
+            <StackPanel Grid.Row="1" Margin="12">
+
+                <!-- Split name -->
+                <TextBlock Text="{Binding SplitName}"
+                           FontSize="13" FontWeight="SemiBold"
+                           Foreground="{DynamicResource EditorSplitsBrush}"
+                           Margin="0,0,0,4"
+                           TextTrimming="CharacterEllipsis" />
+
+                <TextBlock Text="The timer will start when the tool detects that the defined entity id's boss healthbar has appeared on screen."
+                           FontSize="11"
+                           Foreground="{DynamicResource TextBrush}"
+                           Opacity="0.7"
+                           TextWrapping="Wrap"
+                           Margin="0,0,0,10"
+                           Visibility="{Binding SupportsEntityStart, Converter={StaticResource BoolToVisConverter}}" />
+
+                <!-- Entity-start section: hidden entirely on games with no per-boss entity id
+                     (DS2); dimmed and non-interactive (not IsEnabled, which produces uneven
+                     disabled chrome on the inner ListBox) while "start on previous split
+                     completion" is ticked. -->
+                <StackPanel Visibility="{Binding SupportsEntityStart, Converter={StaticResource BoolToVisConverter}}">
+                    <StackPanel.Style>
+                        <Style TargetType="StackPanel">
+                            <Setter Property="Opacity" Value="1" />
+                            <Setter Property="IsHitTestVisible" Value="True" />
+                            <Style.Triggers>
+                                <DataTrigger Binding="{Binding IsEntitySectionEnabled}" Value="False">
+                                    <Setter Property="Opacity" Value="0.35" />
+                                    <Setter Property="IsHitTestVisible" Value="False" />
+                                </DataTrigger>
+                            </Style.Triggers>
+                        </Style>
+                    </StackPanel.Style>
+
+                    <!-- Entity ID entry + Confirm/Clear -->
+                    <Grid Margin="0,0,0,8">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="*" />
+                            <ColumnDefinition Width="Auto" />
+                            <ColumnDefinition Width="Auto" />
+                        </Grid.ColumnDefinitions>
+
+                        <TextBox Grid.Column="0"
+                                 Text="{Binding EntityIdText, UpdateSourceTrigger=PropertyChanged}"
+                                 Margin="0,0,4,0" />
+
+                        <Button Grid.Column="1"
+                                Content="Confirm"
+                                Command="{Binding ConfirmCommand}"
+                                Margin="0,0,4,0" />
+
+                        <Button Grid.Column="2"
+                                Content="Clear"
+                                Command="{Binding ClearCommand}" />
+                    </Grid>
+
+                    <!-- Search -->
+                    <TextBox Text="{Binding SearchText, UpdateSourceTrigger=PropertyChanged}"
+                             Margin="0,0,0,4">
+                        <TextBox.Template>
+                            <ControlTemplate TargetType="TextBox">
+                                <Border x:Name="border"
+                                        Background="{TemplateBinding Background}"
+                                        BorderBrush="{TemplateBinding BorderBrush}"
+                                        BorderThickness="{TemplateBinding BorderThickness}"
+                                        CornerRadius="3">
+                                    <Grid>
+                                        <ScrollViewer x:Name="PART_ContentHost"
+                                                      Focusable="false"
+                                                      HorizontalScrollBarVisibility="Hidden"
+                                                      VerticalScrollBarVisibility="Hidden"
+                                                      VerticalAlignment="Center"
+                                                      Margin="5,0,0,0" />
+
+                                        <TextBlock x:Name="placeholderText"
+                                                   Text="Search For Entities..."
+                                                   VerticalAlignment="Center"
+                                                   HorizontalAlignment="Left"
+                                                   Margin="5,0,0,0"
+                                                   Foreground="Gray"
+                                                   IsHitTestVisible="False">
+                                            <TextBlock.Style>
+                                                <Style TargetType="TextBlock">
+                                                    <Setter Property="Visibility" Value="Collapsed" />
+                                                    <Style.Triggers>
+                                                        <MultiDataTrigger>
+                                                            <MultiDataTrigger.Conditions>
+                                                                <Condition
+                                                                    Binding="{Binding Path=Text, RelativeSource={RelativeSource AncestorType=TextBox}}"
+                                                                    Value="" />
+                                                                <Condition
+                                                                    Binding="{Binding Path=IsKeyboardFocused, RelativeSource={RelativeSource AncestorType=TextBox}}"
+                                                                    Value="False" />
+                                                            </MultiDataTrigger.Conditions>
+                                                            <Setter Property="Visibility" Value="Visible" />
+                                                        </MultiDataTrigger>
+                                                    </Style.Triggers>
+                                                </Style>
+                                            </TextBlock.Style>
+                                        </TextBlock>
+
+                                    </Grid>
+                                </Border>
+
+                                <ControlTemplate.Triggers>
+                                    <Trigger Property="IsKeyboardFocused" Value="True">
+                                        <Setter TargetName="border"
+                                                Property="BorderBrush"
+                                                Value="{DynamicResource AccentBrush}" />
+                                        <Setter TargetName="border"
+                                                Property="BorderThickness"
+                                                Value="1.5" />
+                                    </Trigger>
+                                </ControlTemplate.Triggers>
+                            </ControlTemplate>
+                        </TextBox.Template>
+                    </TextBox>
+
+                    <!-- Entity list -->
+                    <ListBox ItemsSource="{Binding FilteredEntities}"
+                             SelectedItem="{Binding SelectedEntity}"
+                             Height="230"
+                             Background="Transparent"
+                             BorderThickness="0"
+                             ScrollViewer.HorizontalScrollBarVisibility="Disabled">
+                        <ListBox.ItemContainerStyle>
+                            <Style TargetType="ListBoxItem">
+                                <Setter Property="HorizontalContentAlignment" Value="Stretch" />
+                                <Setter Property="Padding" Value="8,5" />
+                                <Setter Property="Template">
+                                    <Setter.Value>
+                                        <ControlTemplate TargetType="ListBoxItem">
+                                            <Border x:Name="Bd"
+                                                    Background="Transparent"
+                                                    BorderBrush="{DynamicResource SplitsCurrentBrush}"
+                                                    BorderThickness="0,0,0,1"
+                                                    Padding="{TemplateBinding Padding}">
+                                                <ContentPresenter />
+                                            </Border>
+                                            <ControlTemplate.Triggers>
+                                                <Trigger Property="IsMouseOver" Value="True">
+                                                    <Setter TargetName="Bd" Property="Background" Value="{DynamicResource SplitsHoverBrush}" />
+                                                </Trigger>
+                                                <Trigger Property="IsSelected" Value="True">
+                                                    <Setter TargetName="Bd" Property="Background" Value="{DynamicResource SplitsCurrentBrush}" />
+                                                </Trigger>
+                                            </ControlTemplate.Triggers>
+                                        </ControlTemplate>
+                                    </Setter.Value>
+                                </Setter>
+                            </Style>
+                        </ListBox.ItemContainerStyle>
+                        <ListBox.ItemTemplate>
+                            <DataTemplate>
+                                <TextBlock Text="{Binding Name}"
+                                           FontSize="12"
+                                           Foreground="{DynamicResource EditorTemplatesBrush}"
+                                           TextTrimming="CharacterEllipsis" />
+                            </DataTemplate>
+                        </ListBox.ItemTemplate>
+                    </ListBox>
+
+                </StackPanel>
+
+                <!-- Start-on-previous-split-completion mode (all games) -->
+                <Separator Margin="0,8,0,8" Opacity="0.3" />
+                <CheckBox Content="Start timer on previous split completion"
+                          IsChecked="{Binding StartTimerOnPreviousSplit}"
+                          Foreground="{DynamicResource TextBrush}" />
+
+                <!-- On DS2 there's no entity to pick, so Confirm/Clear live down here too. -->
+                <StackPanel Orientation="Horizontal"
+                            HorizontalAlignment="Right"
+                            Margin="0,10,0,0">
+                    <StackPanel.Style>
+                        <Style TargetType="StackPanel">
+                            <Setter Property="Visibility" Value="Collapsed" />
+                            <Style.Triggers>
+                                <DataTrigger Binding="{Binding SupportsEntityStart}" Value="False">
+                                    <Setter Property="Visibility" Value="Visible" />
+                                </DataTrigger>
+                            </Style.Triggers>
+                        </Style>
+                    </StackPanel.Style>
+                    <Button Content="Confirm"
+                            Command="{Binding ConfirmCommand}"
+                            Margin="0,0,4,0" />
+                    <Button Content="Clear"
+                            Command="{Binding ClearCommand}" />
+                </StackPanel>
+
+            </StackPanel>
+        </Grid>
+    </Border>
+</Window>

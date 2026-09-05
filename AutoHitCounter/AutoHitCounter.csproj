@@ -266,6 +266,7 @@
     <Compile Include="ViewModels\ProfileEditorViewModel.cs" />
     <Compile Include="ViewModels\SettingsViewModel.cs" />
     <Compile Include="ViewModels\SplitEventEditorViewModel.cs" />
+    <Compile Include="ViewModels\SplitEntityEditorViewModel.cs" />
     <Compile Include="ViewModels\SplitViewModel.cs" />
     <Compile Include="Views\Controls\HotkeysTab.xaml.cs">
       <DependentUpon>HotkeysTab.xaml</DependentUpon>
@@ -275,6 +276,9 @@
     </Compile>
     <Compile Include="Views\Controls\SplitEventEditorWindow.xaml.cs">
       <DependentUpon>SplitEventEditorWindow.xaml</DependentUpon>
+    </Compile>
+    <Compile Include="Views\Controls\SplitEntityEditorWindow.xaml.cs">
+      <DependentUpon>SplitEntityEditorWindow.xaml</DependentUpon>
     </Compile>
     <Compile Include="Views\Controls\TitleBar.xaml.cs">
       <DependentUpon>TitleBar.xaml</DependentUpon>
@@ -310,6 +314,7 @@
     <Page Include="Views\Controls\HotkeysTab.xaml" />
     <Page Include="Views\Controls\SettingsTab.xaml" />
     <Page Include="Views\Controls\SplitEventEditorWindow.xaml" />
+    <Page Include="Views\Controls\SplitEntityEditorWindow.xaml" />
     <Page Include="Views\Controls\TitleBar.xaml" />
     <Page Include="Views\Windows\CustomMessageBox.xaml" />
     <Page Include="Views\Windows\EventLogWindow.xaml" />

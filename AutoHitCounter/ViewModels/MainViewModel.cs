@@ -807,6 +807,25 @@ namespace AutoHitCounter.ViewModels
             if (CurrentSplit == null) return;
             StopBossTimer();
             _splitNav.Advance();
+            TryStartTimerOnPreviousSplitCompletion();
+        }
+
+        // "Start timer on previous split completion" mode: once the cursor has advanced onto
+        // the next split (auto or manual), start that split's boss timer immediately if it's
+        // configured for it -- independent of any healthbar/gauge detection, so it works on
+        // every game (DS2 included). No-op unless the new current split opted in.
+        private void TryStartTimerOnPreviousSplitCompletion()
+        {
+            if (!IsBossTimeTrackersEnabled(_selectedGame)) return;
+            if (_selectedGame != _orchestrator.ActiveGame) return;
+            if (IsPracticeMode || IsRunComplete || CurrentSplit == null) return;
+
+            var entry = GetActiveProfileSplitEntry(CurrentSplit);
+            if (entry is not { StartTimerOnPreviousSplit: true }) return;
+            if (!IsBossTimerEligible(entry)) return;
+            if (_bossTimerSplit == CurrentSplit) return;
+
+            StartBossTimerFor(CurrentSplit, entry.EventId);
         }
 
         // Boss-timer clock: real (wall-clock) elapsed time, not IGT -- a boss fight's
@@ -848,9 +867,24 @@ namespace AutoHitCounter.ViewModels
             for (var i = cutoff; i < ActiveProfile.Splits.Count; i++)
             {
                 var entry = ActiveProfile.Splits[i];
-                if (entry is not { EventId: not null }) continue;
-                if (!bossEntityIds.TryGetValue(entry.EventId.Value, out var expectedEntityIds)) continue;
-                if (!expectedEntityIds.Contains(entityId)) continue;
+                if (entry == null) continue;
+
+                // Resolve which entity IDs count as this split's start trigger. A per-split
+                // entity override ("Edit entity id") replaces the flag-derived boss entity --
+                // and lets even a *custom* split (no EventId) be started by a healthbar. A
+                // split set to start on previous-split completion keeps only its flag-derived
+                // entities here (so an already-running timer is still recognised by the no-op
+                // branch below); it is never *started* by a healthbar. A plain split just uses
+                // its own flag's entities.
+                uint[] expectedEntityIds = null;
+                if (!entry.StartTimerOnPreviousSplit && entry.BossTimerStartEntityIds is { Length: > 0 } overrideIds)
+                    expectedEntityIds = overrideIds;
+                else if (entry.EventId is { } flag)
+                    bossEntityIds.TryGetValue(flag, out expectedEntityIds);
+
+                if (expectedEntityIds == null || !expectedEntityIds.Contains(entityId)) continue;
+
+                var candidate = i < Splits.Count ? Splits[i] : null;
 
                 // Any healthbar spawn matching the flag already being timed -- a genuine
                 // phase transition (new entity ID), or the bar simply hiding/reshowing for
@@ -861,7 +895,12 @@ namespace AutoHitCounter.ViewModels
                 // clean, no-death run). Same policy as hit counting: no auto-detection of
                 // wipes, the clock only resets via an explicit action -- the Reset Boss Timer
                 // hotkey, or resetting the split/run.
-                if (_bossTimerFlag == entry.EventId.Value)
+                // Keyed on the flag when the split has one (robust if Splits is rebuilt
+                // mid-run); on the split reference for custom override splits, which have none.
+                var alreadyTiming = entry.EventId is { } ev
+                    ? _bossTimerFlag == ev
+                    : candidate != null && _bossTimerSplit == candidate;
+                if (alreadyTiming)
                 {
                     if (_bossTimerAwaitingRestoreResume)
                     {
@@ -872,12 +911,11 @@ namespace AutoHitCounter.ViewModels
                     return;
                 }
 
-                _bossTimerStartMs = BossClockMs;
-                _bossTimerAccumulatedMs = 0;
-                _bossTimerIsPaused = false;
-                _bossTimerSplit = i < Splits.Count ? Splits[i] : null;
-                _bossTimerFlag = entry.EventId.Value;
-                if (_bossTimerSplit != null) _bossTimerSplit.BossKillTimeMs = null;
+                // This split is configured to start on the previous split completing, not
+                // on a healthbar -- recognise the match (above) but don't start it here.
+                if (entry.StartTimerOnPreviousSplit) return;
+
+                StartBossTimerFor(candidate, entry.EventId);
                 return;
             }
         }
@@ -911,12 +949,7 @@ namespace AutoHitCounter.ViewModels
                 return;
             }
 
-            _bossTimerStartMs = BossClockMs;
-            _bossTimerAccumulatedMs = 0;
-            _bossTimerIsPaused = false;
-            _bossTimerSplit = CurrentSplit;
-            _bossTimerFlag = entry.EventId;
-            CurrentSplit.BossKillTimeMs = null;
+            StartBossTimerFor(CurrentSplit, entry.EventId);
         }
 
         // Fires when the player leaves the game world (quitout to title, or any other
@@ -978,12 +1011,21 @@ namespace AutoHitCounter.ViewModels
             var entry = GetActiveProfileSplitEntry(CurrentSplit);
             if (!IsBossTimerEligible(entry)) return;
 
+            StartBossTimerFor(CurrentSplit, entry.EventId);
+        }
+
+        // Shared start: begins a fresh timing segment for the given split (real-time clock,
+        // zero accumulated), tracking its flag for phase-transition/no-op detection. Used by
+        // every start path -- healthbar-spawn, DS2 gauge activation, the manual toggle, and
+        // previous-split-completion -- so they can't drift apart.
+        private void StartBossTimerFor(SplitViewModel split, uint? flag)
+        {
             _bossTimerStartMs = BossClockMs;
             _bossTimerAccumulatedMs = 0;
             _bossTimerIsPaused = false;
-            _bossTimerSplit = CurrentSplit;
-            _bossTimerFlag = entry.EventId;
-            CurrentSplit.BossKillTimeMs = null;
+            _bossTimerSplit = split;
+            _bossTimerFlag = flag;
+            if (split != null) split.BossKillTimeMs = null;
         }
 
         // Resets CurrentSplit's boss timer, bound to the ResetBossTimer hotkey. This fully
@@ -1065,7 +1107,14 @@ namespace AutoHitCounter.ViewModels
         // via their own entity-ID tables.
         private bool IsBossTimerEligible(SplitEntry entry)
         {
-            if (entry?.EventId is not { } eventId) return false;
+            if (entry == null) return false;
+            // A per-split entity override, or "start on previous split completion", makes a
+            // split timer-eligible even without an EventId (custom splits) or when its flag
+            // isn't in the mined entity table -- checked before the EventId requirement so
+            // custom splits can both start and be finalized/recorded.
+            if (entry.BossTimerStartEntityIds is { Length: > 0 }) return true;
+            if (entry.StartTimerOnPreviousSplit) return true;
+            if (entry.EventId is not { } eventId) return false;
             if (_selectedGame.Title == GameTitle.DarkSouls2) return true;
             return _gameModuleFactory.GetBossEntityIdsForGame(_selectedGame.Title).ContainsKey(eventId);
         }
@@ -1114,6 +1163,7 @@ namespace AutoHitCounter.ViewModels
             if (CurrentSplit == null) return;
             StopBossTimer();
             _splitNav.Advance();
+            TryStartTimerOnPreviousSplitCompletion();
         }
 
         private void UpdateInGameTime(long igt)
@@ -1194,6 +1244,7 @@ namespace AutoHitCounter.ViewModels
                 : GetAllEventsForGame(_selectedGame.Title);
             var vm = new ProfileEditorViewModel(
                 events,
+                _gameModuleFactory.GetBossEntityIdsForGame(_selectedGame.Title),
                 _profileService,
                 _selectedGame.GameName,
                 _selectedGame.Title,

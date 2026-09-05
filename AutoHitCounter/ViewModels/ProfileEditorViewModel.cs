@@ -22,10 +22,19 @@ public class ProfileEditorViewModel : BaseViewModel, IReorderHandler
     private readonly string _gameName;
     private readonly GameTitle _gameTitle;
 
+    // Boss picker for the "Edit entity id" dialog: every event that also has a boss
+    // entity-id mapping, joined on the shared flag (name from the event list, id from the
+    // entity table). Empty on games with no entity table (DS2) -- that's what drives
+    // SupportsEntityStart / the DS2-only checkbox-only variant of the dialog.
+    private readonly List<EntityOption> _entityStartOptions = new();
+    private readonly Dictionary<uint, uint[]> _bossEntityIds;
+
     public bool IsManualGame { get; }
+    public bool SupportsEntityStart { get; }
 
     public ProfileEditorViewModel(
         Dictionary<uint, string> allEvents,
+        Dictionary<uint, uint[]> bossEntityIds,
         IProfileService profileService,
         string gameName,
         GameTitle gameTitle,
@@ -37,6 +46,12 @@ public class ProfileEditorViewModel : BaseViewModel, IReorderHandler
         _profileService = profileService;
         _gameName = gameName;
         _gameTitle = gameTitle;
+
+        _bossEntityIds = bossEntityIds ?? new Dictionary<uint, uint[]>();
+        SupportsEntityStart = _bossEntityIds.Count > 0;
+        foreach (var kvp in allEvents)
+            if (_bossEntityIds.TryGetValue(kvp.Key, out var ids) && ids.Length > 0)
+                _entityStartOptions.Add(new EntityOption(kvp.Value, ids));
 
         Profiles = new ObservableCollection<Profile>(profileService.GetProfiles(gameName));
 
@@ -79,6 +94,9 @@ public class ProfileEditorViewModel : BaseViewModel, IReorderHandler
         EditSplitEventCommand = new DelegateCommand(EditSplitEvent,
             () => SelectedSplit?.Type == SplitType.Child);
 
+        EditSplitEntityCommand = new DelegateCommand(EditSplitEntity,
+            () => SelectedSplit?.Type == SplitType.Child);
+
         _hideAdded = SettingsManager.Default.HideAdded;
         _allowDuplicates = SettingsManager.Default.AllowDuplicates;
         FilterEvents();
@@ -98,6 +116,7 @@ public class ProfileEditorViewModel : BaseViewModel, IReorderHandler
     public DelegateCommand SaveCommand { get; }
     public DelegateCommand DeleteCommand { get; }
     public DelegateCommand EditSplitEventCommand { get; private set; }
+    public DelegateCommand EditSplitEntityCommand { get; private set; }
 
     public DelegateCommand AddSelectedCommand { get; private set; }
     public DelegateCommand RemoveSelectedCommand { get; private set; }
@@ -141,6 +160,7 @@ public class ProfileEditorViewModel : BaseViewModel, IReorderHandler
                 MoveUpCommand.RaiseCanExecuteChange();
                 MoveDownCommand.RaiseCanExecuteChange();
                 EditSplitEventCommand.RaiseCanExecuteChanged();
+                EditSplitEntityCommand.RaiseCanExecuteChanged();
             }
         }
     }
@@ -284,7 +304,9 @@ public class ProfileEditorViewModel : BaseViewModel, IReorderHandler
                 Type = split.Type,
                 GroupId = split.GroupId,
                 Notes = split.Notes,
-                BossKillTimeBestMs = split.BossKillTimeBestMs
+                BossKillTimeBestMs = split.BossKillTimeBestMs,
+                BossTimerStartEntityIds = split.BossTimerStartEntityIds,
+                StartTimerOnPreviousSplit = split.StartTimerOnPreviousSplit
             });
 
         FilterEvents();
@@ -569,7 +591,9 @@ public class ProfileEditorViewModel : BaseViewModel, IReorderHandler
                 Type = split.Type,
                 GroupId = split.GroupId,
                 Notes = split.Notes,
-                BossKillTimeBestMs = split.BossKillTimeBestMs
+                BossKillTimeBestMs = split.BossKillTimeBestMs,
+                BossTimerStartEntityIds = split.BossTimerStartEntityIds,
+                StartTimerOnPreviousSplit = split.StartTimerOnPreviousSplit
             });
         if (selectedName != null)
             SelectedSplit = Splits.FirstOrDefault(s => s.Name == selectedName);
@@ -637,6 +661,56 @@ public class ProfileEditorViewModel : BaseViewModel, IReorderHandler
 
         SelectedSplit.EventId = vm.ResultEventId;
         IsDirty = true;
+    }
+
+    // "Edit entity id" -- configures *when* the split's boss timer starts (vs. "Edit
+    // Event", which sets the flag that completes the split / stops the timer).
+    private void EditSplitEntity()
+    {
+        if (SelectedSplit == null || SelectedSplit.Type != SplitType.Child) return;
+
+        // Prefill with the split's current effective start entities (like "Edit Event"
+        // prefills the flag): its explicit override if set, otherwise the entities its own
+        // EventId resolves to in the boss table.
+        var defaultIds = SelectedSplit.EventId is { } flag && _bossEntityIds.TryGetValue(flag, out var d)
+            ? d : null;
+        var initialIds = SelectedSplit.BossTimerStartEntityIds ?? defaultIds;
+
+        var vm = new SplitEntityEditorViewModel(SelectedSplit, _entityStartOptions,
+            SupportsEntityStart, initialIds);
+        var window = new SplitEntityEditorWindow();
+        window.SetViewModel(vm);
+        window.ShowDialog();
+
+        // The checkbox is a plain toggle with no Confirm affordance of its own (Confirm/
+        // Clear only commit the entity field), so persist its live state on close however
+        // the window was closed -- otherwise ticking it and closing via X would be lost.
+        if (SelectedSplit.StartTimerOnPreviousSplit != vm.StartTimerOnPreviousSplit)
+        {
+            SelectedSplit.StartTimerOnPreviousSplit = vm.StartTimerOnPreviousSplit;
+            IsDirty = true;
+        }
+
+        // The entity override only commits when the user actually confirmed/cleared the
+        // field, and only when it differs from the flag-derived default -- so a split the
+        // user never really re-pointed keeps null and follows future table changes.
+        if (vm.Confirmed)
+        {
+            SelectedSplit.BossTimerStartEntityIds =
+                EntitySetsEqual(vm.ResultEntityIds, defaultIds) ? null : vm.ResultEntityIds;
+            IsDirty = true;
+        }
+    }
+
+    private static bool EntitySetsEqual(uint[] a, uint[] b)
+    {
+        var aEmpty = a == null || a.Length == 0;
+        var bEmpty = b == null || b.Length == 0;
+        if (aEmpty || bEmpty) return aEmpty && bEmpty;
+        if (a.Length != b.Length) return false;
+        for (var i = 0; i < a.Length; i++)
+            if (a[i] != b[i]) return false;
+        return true;
     }
 
     // fuzzy search

@@ -17,6 +17,7 @@ public class ProfileEditorViewModelTests
         _profileService.GetProfiles(Arg.Any<string>()).Returns([]);
         return new ProfileEditorViewModel(
             new Dictionary<uint, string>(),
+            new Dictionary<uint, uint[]>(),
             _profileService,
             "TestGame",
             GameTitle.EldenRing,

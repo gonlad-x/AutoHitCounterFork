@@ -403,7 +403,12 @@
                                           Command="{Binding PlacementTarget.DataContext.RemoveSelectedCommand,
                             RelativeSource={RelativeSource AncestorType=ContextMenu}}" />
                                 <MenuItem Header="Edit Event"
+                                          ToolTip="Split completes and timer stops (if applicable)"
                                           Command="{Binding PlacementTarget.DataContext.EditSplitEventCommand,
+                            RelativeSource={RelativeSource AncestorType=ContextMenu}}" />
+                                <MenuItem Header="Edit Entity"
+                                          ToolTip="Defines when the timer starts"
+                                          Command="{Binding PlacementTarget.DataContext.EditSplitEntityCommand,
                             RelativeSource={RelativeSource AncestorType=ContextMenu}}" />
                             </ContextMenu>
                         </ListBox.ContextMenu>
