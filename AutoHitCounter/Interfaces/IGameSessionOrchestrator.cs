@@ -17,9 +17,9 @@ public interface IGameSessionOrchestrator : IDisposable
     event Action AttachmentChanged;
     event Action<uint> BossHealthBarSpawnDetected;
 
-    // A displayed boss's HP refilled -- a deathblow/phase transition (Sekiro only).
-    // Carries the boss entity ID, same space as BossHealthBarSpawnDetected.
-    event Action<uint> BossPhaseTransitionDetected;
+    // A displayed boss's deathblow/phase node decremented (Sekiro only).
+    // Carries (entityId, newNode) -- see IGameModule.OnBossNodeChanged.
+    event Action<uint, int> BossNodeChangedDetected;
 
     event Action BossGaugeActivated;
 

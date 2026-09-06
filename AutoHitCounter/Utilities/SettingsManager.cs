@@ -48,6 +48,8 @@ public class SettingsManager
     public bool SKNoTutorials { get; set; }
     public bool SKBossTimeTrackersEnabled { get; set; }
     public bool SKPhaseSubSplitEnabled { get; set; }
+    [DefaultValue(true)] public bool SKPhaseTransitionsEnabled { get; set; }
+    public bool SKStopTimerOnDeathblow { get; set; }
     public bool DSRBossTimeTrackersEnabled { get; set; }
     public bool DS2NoBabyJump { get; set; }
     public bool DS2SkipCredits { get; set; }

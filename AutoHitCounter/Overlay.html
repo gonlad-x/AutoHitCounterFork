@@ -106,17 +106,11 @@
             white-space: nowrap;
         }
 
-        /* Boss phase sub-rows */
-        .phase-row {
-            display: flex;
-            align-items: center;
-            padding: 1px 4px 1px 24px;
-            font-size: 0.82em;
-            opacity: 0.7;
-        }
-        .phase-row .phase-name { flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-        .phase-row .phase-hits { margin-right: 10px; }
-        .phase-row .phase-time { font-family: Consolas, monospace; }
+        /* Boss phase sub-rows -- share the split-row grid so hits/time line up with the
+           main columns; just smaller, indented, and (for transitions) dimmed + italic. */
+        .split-row.phase-row { font-size: 0.85em; }
+        .split-row.phase-row .col-name { padding-left: 18px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+        .split-row.phase-row.transition { opacity: 0.7; font-style: italic; }
 
         /* Current split when hit (red) */
         .split-row.current.hit {
@@ -312,6 +306,7 @@
             groupCollapseMode: 2,
             pbColor: '#bbbbbb',
             bossTimeColor: '#bbbbbb',
+            phaseColor: '#888888',
             showFooterTotals: true,
             groupProgressMode: 0,
             igtFontFamily: 'Consolas',
@@ -509,6 +504,7 @@
                 .split-row.cleared .col-pb { color: ${config.pbMatchesHit ? config.hitsClearedColor : config.pbColor}; }
                 .split-row.current.hit .col-pb { color: ${config.pbMatchesHit ? config.hitsActiveColor : config.pbColor}; }
                 .split-row .col-boss-time { color: ${config.bossTimeColor}; font-family: ${config.igtFontFamily || 'Consolas, monospace'}; }
+                .split-row.phase-row .col-name, .split-row.phase-row .col-hits, .split-row.phase-row .col-boss-time { color: ${config.phaseColor}; }
                 .split-row.parent .col-hits { color: ${ghHits}; }
                 .split-row.parent .col-pb { color: ${ghPb}; }
                 .split-row.parent {
@@ -956,13 +952,18 @@
             }
 
             let phaseRows = '';
-            if (config.showBossTimer && s.phases && s.phases.length && !s.isParent) {
-                phaseRows = s.phases.map(p =>
-                    `<div class="phase-row">
-                        <span class="phase-name">${escapeHtml(p.label || '')}</span>
-                        <span class="phase-hits">${p.hits}</span>
-                        <span class="phase-time">${p.time || ''}</span>
-                    </div>`).join('');
+            if (config.showBossTimer && s.phases && s.phases.length > 1 && !s.isParent) {
+                phaseRows = s.phases.map(p => {
+                    const tcls = p.isTransition ? ' transition' : '';
+                    const diff = config.showDiff ? `<span class="col-diff"></span>` : '';
+                    const pb = config.showPb ? `<span class="col-pb"></span>` : '';
+                    const bt = config.showBossTimer ? `<span class="col-boss-time">${p.time || ''}</span>` : '';
+                    return `<div class="split-row phase-row${tcls}" style="grid-template-columns: ${cols}">
+                        <span class="col-name">${escapeHtml(p.label || '')}</span>
+                        <span class="col-hits">${p.hits}</span>
+                        ${diff}${pb}${bt}
+                    </div>`;
+                }).join('');
             }
 
             return `<div class="split-row${parent}${current}${cleared}${hit}${dpbhighlight}${collapsedClass}${inactiveClass}" style="grid-template-columns: ${cols}">

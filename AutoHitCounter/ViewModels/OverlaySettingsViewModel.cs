@@ -212,6 +212,7 @@ public class OverlaySettingsViewModel : BaseViewModel
 
     public bool PbMatchesHit { get => Get<bool>(); set => Set(value); }
     public string BossTimeColor { get => Get<string>(); set => Set(value); }
+    public string PhaseColor { get => Get<string>(); set => Set(value); }
     public string FooterHitFontColor          { get => Get<string>(); set => Set(value); }
     public string FooterHitsCurrentColor          { get => Get<string>(); set => Set(value); }
     public string FooterPbFontColor          { get => Get<string>(); set => Set(value); }

@@ -78,7 +78,7 @@ namespace AutoHitCounter.ViewModels
             _orchestrator.EventLogEntries += entries => _eventLogViewModel?.RefreshEventLogs(entries);
             _orchestrator.TimeChangedMs += UpdateInGameTime;
             _orchestrator.BossHealthBarSpawnDetected += HandleBossHealthBarSpawn;
-            _orchestrator.BossPhaseTransitionDetected += HandlePhaseTransition;
+            _orchestrator.BossNodeChangedDetected += HandleNodeChanged;
             _orchestrator.BossGaugeActivated += HandleBossGaugeActivated;
             _orchestrator.GameUnloaded += HandleGameUnloaded;
 
@@ -831,15 +831,26 @@ namespace AutoHitCounter.ViewModels
         // same flag should resume it automatically instead of sitting frozen forever.
         private bool _bossTimerAwaitingRestoreResume;
 
-        // Phase sub-split state (Sekiro only). _phaseSubSplitActive is set when the
-        // currently-timed split has phase sub-splitting on; _phaseStartHits is the timed
-        // split's NumOfHits at the start of the in-progress phase (per-phase hits are
-        // derived by subtracting this, so they always sum to the split total).
-        // _bossTimerEntityId is the entity whose bar is currently timed -- used to tell an
-        // entity-SWAP phase (new entity, same flag) apart from a benign same-entity reshow.
+        // Phase sub-split state (Sekiro only), driven by the boss's deathblow/phase node
+        // (ChrData+0x25C, see SKBossHealthBarService). The tracked split's Phases collection
+        // holds an ordered mix of Phase and Transition segments; the last one is live.
+        //   _segmentStartHits = split.NumOfHits when the current live segment began (per-
+        //                       segment hits are derived by subtraction, so they sum to total).
+        //   _armed            = a node hit 0 (form ended); the next bar (re)spawn for this
+        //                       fight is a real transition (Ape revive / Genichiro swap).
+        //   _formEndMs/_formEndHits = elapsed/hits captured at that node->0, used to split the
+        //                       phase's time from the transition's downtime.
         private bool _phaseSubSplitActive;
-        private int _phaseStartHits;
-        private uint _bossTimerEntityId;
+        private int _segmentStartHits;
+        private bool _armed;
+        private long _formEndMs;
+        private int _formEndHits;
+
+        // Elapsed at the most recent node->0 (deathblow) of the timed fight. Backs the
+        // "Stop timer on final deathblow" Sekiro option: while armed the boss kill timer
+        // freezes here, and on defeat the recorded time is capped to it (excluding the
+        // final death-animation gap). Independent of phase sub-splitting.
+        private long _lastNodeClearedMs;
 
         private void HandleBossHealthBarSpawn(uint entityId)
         {
@@ -863,15 +874,13 @@ namespace AutoHitCounter.ViewModels
                 if (!bossEntityIds.TryGetValue(entry.EventId.Value, out var expectedEntityIds)) continue;
                 if (!expectedEntityIds.Contains(entityId)) continue;
 
-                // Any healthbar spawn matching the flag already being timed -- a genuine
-                // phase transition (new entity ID), or the bar simply hiding/reshowing for
-                // the same entity (decapitation-style transitions, stealth-deathblow prompts,
-                // etc.) -- is left alone. There's no reliable way to tell that apart from a
-                // genuine wipe/retry using entity IDs alone (Guardian Ape's decapitation
-                // reuses the same entity ID, so a "repeat means retry" rule was resetting a
-                // clean, no-death run). Same policy as hit counting: no auto-detection of
-                // wipes, the clock only resets via an explicit action -- the Reset Boss Timer
-                // hotkey, or resetting the split/run.
+                // A bar (re)spawn matching the flag already being timed. On its own this is a
+                // benign reshow (decapitation/stealth prompt) and is left alone -- the clock
+                // only resets via an explicit action. But if we're ARMED (the boss's node just
+                // hit 0), this respawn is a real form change -- Guardian Ape's revive (same
+                // entity) or Genichiro's swap (1110800 -> 1110801) -- so it closes the phase
+                // and opens a transition segment. Same-entity vs different-entity doesn't
+                // matter; the arm gate is what tells a real transition from a benign reshow.
                 if (_bossTimerFlag == entry.EventId.Value)
                 {
                     if (_bossTimerAwaitingRestoreResume)
@@ -881,15 +890,13 @@ namespace AutoHitCounter.ViewModels
                         _bossTimerAwaitingRestoreResume = false;
                     }
 
-                    // Entity-SWAP phase transition: the same tracked flag, but a DIFFERENT
-                    // entity's bar now shows (e.g. Genichiro Castle 1110800 -> 1110801). A
-                    // same-entity reshow (benign decapitation/stealth-deathblow prompt) is
-                    // left alone -- a genuine same-entity phase instead refills HP and is
-                    // caught by HandlePhaseTransition.
-                    if (_phaseSubSplitActive && entityId != _bossTimerEntityId)
+                    // An armed respawn (revive / swap): a real form change. Clear the arm so
+                    // the boss kill timer un-freezes and catches up the downtime; if phase
+                    // sub-splitting is on, also emit the transition + open the next phase.
+                    if (_armed)
                     {
-                        _bossTimerEntityId = entityId;
-                        AdvancePhase();
+                        if (_phaseSubSplitActive) ConfirmTransition();
+                        else _armed = false;
                     }
                     return;
                 }
@@ -899,7 +906,6 @@ namespace AutoHitCounter.ViewModels
                 _bossTimerIsPaused = false;
                 _bossTimerSplit = i < Splits.Count ? Splits[i] : null;
                 _bossTimerFlag = entry.EventId.Value;
-                _bossTimerEntityId = entityId;
                 if (_bossTimerSplit != null) _bossTimerSplit.BossKillTimeMs = null;
                 StartPhaseTracking(_bossTimerSplit, entry);
                 return;
@@ -1008,7 +1014,6 @@ namespace AutoHitCounter.ViewModels
             _bossTimerIsPaused = false;
             _bossTimerSplit = CurrentSplit;
             _bossTimerFlag = entry.EventId;
-            _bossTimerEntityId = 0;
             CurrentSplit.BossKillTimeMs = null;
             StartPhaseTracking(CurrentSplit, entry);
         }
@@ -1051,11 +1056,16 @@ namespace AutoHitCounter.ViewModels
             if (!_bossTimerIsPaused && _bossTimerStartMs is { } startMs)
                 elapsed += BossClockMs - startMs;
 
-            // Capture phase state before ClearBossTimerState wipes it -- the final phase
-            // (the last one fought before the kill) is committed with the whole fight's
-            // real elapsed so the phases sum to BossKillTimeMs.
+            // "Stop timer on final deathblow": record the time at the last node->0 rather than
+            // at the defeat flag, dropping the death-animation gap. The split itself still
+            // advances on the defeat flag with hits intact -- this is purely the timer value.
+            if (SettingsManager.Default.SKStopTimerOnDeathblow && _lastNodeClearedMs > 0)
+                elapsed = _lastNodeClearedMs;
+
+            // Capture phase state before ClearBossTimerState wipes it -- the final (live)
+            // segment is committed with this same elapsed so segments sum to BossKillTimeMs.
             var phaseActive = _phaseSubSplitActive;
-            var phaseStartHits = _phaseStartHits;
+            var segmentStartHits = _segmentStartHits;
 
             ClearBossTimerState();
 
@@ -1064,7 +1074,7 @@ namespace AutoHitCounter.ViewModels
             if (elapsed < 0) return;
 
             split.BossKillTimeMs = elapsed;
-            if (phaseActive) CommitLivePhase(split, elapsed, phaseStartHits);
+            if (phaseActive) CommitLiveSegment(split, elapsed, split.NumOfHits, segmentStartHits);
             SaveRunState();
         }
 
@@ -1114,8 +1124,11 @@ namespace AutoHitCounter.ViewModels
             _bossTimerFlag = null;
             _bossTimerAwaitingRestoreResume = false;
             _phaseSubSplitActive = false;
-            _phaseStartHits = 0;
-            _bossTimerEntityId = 0;
+            _segmentStartHits = 0;
+            _armed = false;
+            _formEndMs = 0;
+            _formEndHits = 0;
+            _lastNodeClearedMs = 0;
         }
 
         // Called right before a clear that would otherwise just discard whatever
@@ -1134,26 +1147,41 @@ namespace AutoHitCounter.ViewModels
             return idx >= 0 && idx < ActiveProfile.Splits.Count ? ActiveProfile.Splits[idx] : null;
         }
 
-        // HP-refill phase transition (Sekiro): a boss whose bar is up just had its HP snap
-        // back upward -- a deathblow into the next phase on the SAME entity (Genichiro's
-        // pips, Guardian Ape's headless revival). Only acts on the boss currently being
-        // timed; entity-swap phases come through HandleBossHealthBarSpawn instead.
-        private void HandlePhaseTransition(uint entityId)
+        // A boss's deathblow/phase node (ChrData+0x25C) decremented (Sekiro). Only acts on
+        // the boss currently being timed. newNode>=1 is a same-bar deathblow (a phase
+        // boundary); newNode==0 means the form ended -- arm, so the next bar (re)spawn for
+        // this fight becomes a transition (Ape revive / Genichiro swap). The real kill's
+        // node->0 is closed by the defeat flag (StopBossTimer), never by an arm.
+        private void HandleNodeChanged(uint entityId, int newNode)
         {
             if (!IsBossTimeTrackersEnabled(_selectedGame)) return;
             if (_selectedGame != _orchestrator.ActiveGame) return;
             if (IsPracticeMode || IsRunComplete) return;
-            if (!_phaseSubSplitActive || _bossTimerSplit == null || _bossTimerFlag is not { } flag) return;
+            if (_bossTimerSplit == null || _bossTimerFlag is not { } flag) return;
 
             var bossEntityIds = _gameModuleFactory.GetBossEntityIdsForGame(_selectedGame.Title);
             if (!bossEntityIds.TryGetValue(flag, out var ids) || !ids.Contains(entityId)) return;
 
-            AdvancePhase();
+            if (newNode == 0)
+            {
+                // The current form ended (deathblow). Arm the next respawn as a transition,
+                // and record the moment for the "stop timer on final deathblow" option.
+                // Both are tracked regardless of whether phase sub-splitting is on.
+                _armed = true;
+                _formEndMs = CurrentBossElapsedMs();
+                _formEndHits = _bossTimerSplit.NumOfHits;
+                _lastNodeClearedMs = _formEndMs;
+            }
+            else // newNode >= 1: same-bar deathblow, the boss form is still up
+            {
+                _armed = false;
+                if (_phaseSubSplitActive) AdvancePhase();
+            }
         }
 
         // Effective per-split phase-sub-split setting: an explicit On/Off override wins,
-        // otherwise the game's global flag. Sekiro-only -- no other game raises a phase
-        // event, so this stays false for them and no stuck live phase can appear.
+        // otherwise the game's global flag. Sekiro-only -- no other game raises node
+        // changes, so this stays false for them and no stuck live segment can appear.
         private bool IsPhaseSubSplitEnabled(SplitEntry entry)
         {
             if (entry == null) return false;
@@ -1166,59 +1194,116 @@ namespace AutoHitCounter.ViewModels
             };
         }
 
-        // Called on every fresh boss-timer start. Resets the split's phase rows and, if
+        // Called on every fresh boss-timer start. Resets the split's segment rows and, if
         // phase sub-splitting is active for it, seeds the first (live) phase.
         private void StartPhaseTracking(SplitViewModel split, SplitEntry entry)
         {
             _phaseSubSplitActive = IsPhaseSubSplitEnabled(entry);
-            _phaseStartHits = split?.NumOfHits ?? 0;
+            _armed = false;
+            _lastNodeClearedMs = 0;
+            _segmentStartHits = split?.NumOfHits ?? 0;
             split?.Phases.Clear();
             if (_phaseSubSplitActive && split != null)
-                split.Phases.Add(new PhaseResultViewModel { PhaseNumber = 1, Hits = 0, TimeMs = 0, IsLive = true });
+                AddLivePhase(split);
         }
 
-        // Closes the in-progress phase and opens the next one. Fired on each deathblow/
-        // phase transition (HP refill or entity swap).
+        // Same-bar deathblow: close the current phase and open the next one.
         private void AdvancePhase()
         {
             var split = _bossTimerSplit;
             if (!_phaseSubSplitActive || split == null) return;
 
-            CommitLivePhase(split, CurrentBossElapsedMs(), _phaseStartHits);
-            _phaseStartHits = split.NumOfHits;
-            split.Phases.Add(new PhaseResultViewModel
-            {
-                PhaseNumber = split.Phases.Count + 1,
-                Hits = 0,
-                TimeMs = 0,
-                IsLive = true
-            });
+            CommitLiveSegment(split, CurrentBossElapsedMs(), split.NumOfHits, _segmentStartHits);
+            _armed = false;
+            AddLivePhase(split);
 
             SaveRunState();
             _overlayServerService.BroadcastState(OverlayMapper.MapFrom(this));
         }
 
-        // Updates the live (in-progress) phase's hits/time from the running totals.
-        // Per-phase hits = split total minus the total at this phase's start; per-phase
-        // time = whole-fight elapsed minus the time already banked in completed phases.
-        private void UpdateLivePhase(SplitViewModel split, long totalElapsed, int startHits)
+        // An armed bar (re)spawn: the form change is real (Ape revive / Genichiro swap).
+        // Close the phase at the form-end (so its time excludes the downtime), emit the
+        // transition segment (form-end -> now), then open the next phase.
+        private void ConfirmTransition()
+        {
+            var split = _bossTimerSplit;
+            if (!_phaseSubSplitActive || split == null) return;
+
+            var now = CurrentBossElapsedMs();
+            if (SettingsManager.Default.SKPhaseTransitionsEnabled)
+            {
+                // Close the phase at the form-end so its time excludes the downtime, then
+                // emit the transition segment (form-end -> now).
+                CommitLiveSegment(split, _formEndMs, _formEndHits, _segmentStartHits);
+                split.Phases.Add(new PhaseResultViewModel
+                {
+                    IsTransition = true,
+                    IsLive = false,
+                    Hits = split.NumOfHits - _formEndHits,
+                    TimeMs = Math.Max(0, now - _formEndMs)
+                });
+            }
+            else
+            {
+                // Transitions off: fold the downtime into the phase that just ended.
+                CommitLiveSegment(split, now, split.NumOfHits, _segmentStartHits);
+            }
+
+            _armed = false;
+            AddLivePhase(split);
+
+            SaveRunState();
+            _overlayServerService.BroadcastState(OverlayMapper.MapFrom(this));
+        }
+
+        // Appends a fresh live Phase segment and marks it the current one.
+        private void AddLivePhase(SplitViewModel split)
+        {
+            split.Phases.Add(new PhaseResultViewModel
+            {
+                PhaseNumber = split.Phases.Count(p => !p.IsTransition) + 1,
+                IsTransition = false,
+                Hits = 0,
+                TimeMs = 0,
+                IsLive = true
+            });
+            _segmentStartHits = split.NumOfHits;
+        }
+
+        // Live-updates the in-progress segment's hits/time each tick. While armed (node at 0,
+        // waiting to see revive-vs-kill) the display is frozen at the form-end values so a
+        // phase doesn't visibly tick up through the downtime before the transition appears.
+        private void UpdateLiveSegment(SplitViewModel split)
         {
             var live = split.Phases.LastOrDefault();
             if (live is not { IsLive: true }) return;
 
-            live.Hits = split.NumOfHits - startHits;
+            // Freeze at form-end while armed when either the transition timer owns the
+            // downtime, or "stop timer on final deathblow" is on (so the final phase matches
+            // the capped kill time). Otherwise the phase keeps ticking and absorbs the downtime.
+            var freeze = _armed && (SettingsManager.Default.SKPhaseTransitionsEnabled
+                                    || SettingsManager.Default.SKStopTimerOnDeathblow);
+            var effElapsed = freeze ? _formEndMs : CurrentBossElapsedMs();
+            var effHits = freeze ? _formEndHits : split.NumOfHits;
+            live.Hits = effHits - _segmentStartHits;
+            live.TimeMs = Math.Max(0, effElapsed - SumCommittedMs(split));
+        }
+
+        private void CommitLiveSegment(SplitViewModel split, long endElapsed, int endHits, int startHits)
+        {
+            var live = split.Phases.LastOrDefault();
+            if (live is not { IsLive: true }) return;
+            live.Hits = endHits - startHits;
+            live.TimeMs = Math.Max(0, endElapsed - SumCommittedMs(split));
+            live.IsLive = false;
+        }
+
+        private static long SumCommittedMs(SplitViewModel split)
+        {
             long banked = 0;
             foreach (var p in split.Phases)
                 if (!p.IsLive) banked += p.TimeMs;
-            live.TimeMs = Math.Max(0, totalElapsed - banked);
-        }
-
-        private void CommitLivePhase(SplitViewModel split, long totalElapsed, int startHits)
-        {
-            var live = split.Phases.LastOrDefault();
-            if (live is not { IsLive: true }) return;
-            UpdateLivePhase(split, totalElapsed, startHits);
-            live.IsLive = false;
+            return banked;
         }
 
         private long CurrentBossElapsedMs()
@@ -1275,10 +1360,15 @@ namespace AutoHitCounter.ViewModels
             {
                 var newElapsed = _bossTimerAccumulatedMs + (BossClockMs - startMs);
 
+                // "Stop timer on final deathblow": while a form is down (armed) the boss kill
+                // timer freezes at that deathblow; it un-freezes and catches up if the boss
+                // revives/swaps, or stays frozen if the fight ends (finalized in StopBossTimer).
+                var freezeTimer = SettingsManager.Default.SKStopTimerOnDeathblow && _armed && _lastNodeClearedMs > 0;
+
                 var previousDisplay = _bossTimerSplit.BossKillTimeDisplay;
-                _bossTimerSplit.BossKillTimeMs = newElapsed;
+                _bossTimerSplit.BossKillTimeMs = freezeTimer ? _lastNodeClearedMs : newElapsed;
                 if (_phaseSubSplitActive)
-                    UpdateLivePhase(_bossTimerSplit, newElapsed, _phaseStartHits);
+                    UpdateLiveSegment(_bossTimerSplit);
                 if (_bossTimerSplit.BossKillTimeDisplay != previousDisplay)
                     _overlayServerService.BroadcastState(OverlayMapper.MapFrom(this));
             }

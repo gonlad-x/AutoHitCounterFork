@@ -62,7 +62,7 @@ public class GameSessionOrchestrator : IGameSessionOrchestrator
 
     public event Action<uint> BossHealthBarSpawnDetected;
 
-    public event Action<uint> BossPhaseTransitionDetected;
+    public event Action<uint, int> BossNodeChangedDetected;
 
     public event Action BossGaugeActivated;
 
@@ -137,7 +137,7 @@ public class GameSessionOrchestrator : IGameSessionOrchestrator
         TimeChangedMs = null;
         AttachmentChanged = null;
         BossHealthBarSpawnDetected = null;
-        BossPhaseTransitionDetected = null;
+        BossNodeChangedDetected = null;
         BossGaugeActivated = null;
         GameUnloaded = null;
     }
@@ -185,7 +185,7 @@ public class GameSessionOrchestrator : IGameSessionOrchestrator
         _currentModule.OnEventLogEntriesReceived += entries => EventLogEntries?.Invoke(entries);
         _currentModule.OnTimeChanged += ms => TimeChangedMs?.Invoke(ms);
         _currentModule.OnBossHealthBarSpawn += entityId => BossHealthBarSpawnDetected?.Invoke(entityId);
-        _currentModule.OnBossPhaseTransition += entityId => BossPhaseTransitionDetected?.Invoke(entityId);
+        _currentModule.OnBossNodeChanged += (entityId, newNode) => BossNodeChangedDetected?.Invoke(entityId, newNode);
         _currentModule.OnBossGaugeActivated += () => BossGaugeActivated?.Invoke();
         _currentModule.OnGameUnloaded += () => GameUnloaded?.Invoke();
 

@@ -148,7 +148,7 @@ public class RunStateService : IRunStateService
     private static PhaseResult[] SavePhases(SplitViewModel split) =>
         split.Phases
             .Where(p => !p.IsLive)
-            .Select(p => new PhaseResult { Hits = p.Hits, TimeMs = p.TimeMs })
+            .Select(p => new PhaseResult { Hits = p.Hits, TimeMs = p.TimeMs, IsTransition = p.IsTransition })
             .ToArray();
 
     // phaseResults can be null when restoring a RunState saved before this field existed.
@@ -161,14 +161,19 @@ public class RunStateService : IRunStateService
             children[i].Phases.Clear();
             var results = phaseResults[i];
             if (results == null) continue;
-            for (int p = 0; p < results.Length; p++)
+            var phaseNo = 0;
+            foreach (var r in results)
+            {
+                if (!r.IsTransition) phaseNo++;
                 children[i].Phases.Add(new PhaseResultViewModel
                 {
-                    PhaseNumber = p + 1,
-                    Hits = results[p].Hits,
-                    TimeMs = results[p].TimeMs,
+                    PhaseNumber = phaseNo,
+                    IsTransition = r.IsTransition,
+                    Hits = r.Hits,
+                    TimeMs = r.TimeMs,
                     IsLive = false
                 });
+            }
         }
     }
 

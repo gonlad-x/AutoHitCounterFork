@@ -77,8 +77,14 @@ public static class SKOffsets
             // a boss's HP jumping back up while its gauge stays active marks a deathblow/phase.
             public const int Modules = 0x1FF8;
             public const int ChrDataModule = 0x18;
-            public const int Hp = 0x130;
-            public const int MaxHp = 0x134;
+
+            // Boss deathblow/phase node, reached ChrIns -> Modules(0x1FF8) -> ChrDataModule(0x18)
+            // -> +0x25C. Decrements by 1 on each deathblow; the boss's own EzState scripts read
+            // it (getter FUN_140bd5870, EzState condition 0x79) to gate phase transitions, and
+            // SekiroTool writes it (its "CurrentBossNode") to skip Genichiro phases. Confirmed
+            // via a live memory probe (2026-09-06) across Genichiro and Guardian Ape. This is
+            // THE phase signal -- HP is useless here (stays at 1 during deathblow states).
+            public const int BossNode = 0x25C;
         }
     }
 

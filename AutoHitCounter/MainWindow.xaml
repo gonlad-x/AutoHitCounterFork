@@ -683,22 +683,44 @@
                                                 </TextBlock.Style>
                                             </TextBlock>
 
-                                            <!-- Name column -->
-                                            <TextBlock Text="{Binding Name}"
-                                                       FontFamily="{StaticResource AppFont}"
-                                                       FontSize="{StaticResource FontSizeBody}"
-                                                       VerticalAlignment="Center"
-                                                       Margin="{Binding Type, Converter={StaticResource ParentChildMarginConverter}}">
-                                                <TextBlock.Style>
-                                                    <Style TargetType="TextBlock">
+                                            <!-- Name column (with a phase expand/collapse arrow when the boss has phases) -->
+                                            <StackPanel Orientation="Horizontal" VerticalAlignment="Center"
+                                                        Margin="{Binding Type, Converter={StaticResource ParentChildMarginConverter}}">
+                                                <StackPanel.Style>
+                                                    <Style TargetType="StackPanel">
                                                         <Style.Triggers>
                                                             <DataTrigger Binding="{Binding IsEditing}" Value="True">
                                                                 <Setter Property="Visibility" Value="Collapsed" />
                                                             </DataTrigger>
                                                         </Style.Triggers>
                                                     </Style>
-                                                </TextBlock.Style>
-                                            </TextBlock>
+                                                </StackPanel.Style>
+                                                <ToggleButton IsChecked="{Binding IsPhaseExpanded, Mode=TwoWay}"
+                                                              Cursor="Hand" Margin="0,0,4,0" VerticalAlignment="Center"
+                                                              Visibility="{Binding HasPhases, Converter={StaticResource BoolToVisConverter}}">
+                                                    <ToggleButton.Template>
+                                                        <ControlTemplate TargetType="ToggleButton">
+                                                            <TextBlock FontSize="9" Background="Transparent"
+                                                                       Foreground="{DynamicResource IndicatorBrush}">
+                                                                <TextBlock.Style>
+                                                                    <Style TargetType="TextBlock">
+                                                                        <Setter Property="Text" Value="&#x25B8;" />
+                                                                        <Style.Triggers>
+                                                                            <DataTrigger Binding="{Binding IsPhaseExpanded}" Value="True">
+                                                                                <Setter Property="Text" Value="&#x25BE;" />
+                                                                            </DataTrigger>
+                                                                        </Style.Triggers>
+                                                                    </Style>
+                                                                </TextBlock.Style>
+                                                            </TextBlock>
+                                                        </ControlTemplate>
+                                                    </ToggleButton.Template>
+                                                </ToggleButton>
+                                                <TextBlock Text="{Binding Name}"
+                                                           FontFamily="{StaticResource AppFont}"
+                                                           FontSize="{StaticResource FontSizeBody}"
+                                                           VerticalAlignment="Center" />
+                                            </StackPanel>
 
                                             <!-- In-line Rename box -->
                                             <TextBox x:Name="RenameBox"
@@ -986,40 +1008,20 @@
                                             </Style>
                                         </StackPanel.Style>
 
-                                        <ToggleButton IsChecked="{Binding IsPhaseExpanded, Mode=TwoWay}"
-                                                      HorizontalAlignment="Left"
-                                                      Margin="20,1,0,0"
-                                                      Cursor="Hand">
-                                            <ToggleButton.Template>
-                                                <ControlTemplate TargetType="ToggleButton">
-                                                    <StackPanel Orientation="Horizontal" Background="Transparent">
-                                                        <TextBlock FontSize="9" VerticalAlignment="Center"
-                                                                   Margin="0,0,4,0"
-                                                                   Foreground="{DynamicResource IndicatorBrush}">
-                                                            <TextBlock.Style>
-                                                                <Style TargetType="TextBlock">
-                                                                    <Setter Property="Text" Value="&#x25B8;" />
-                                                                    <Style.Triggers>
-                                                                        <DataTrigger Binding="{Binding IsPhaseExpanded}" Value="True">
-                                                                            <Setter Property="Text" Value="&#x25BE;" />
-                                                                        </DataTrigger>
-                                                                    </Style.Triggers>
-                                                                </Style>
-                                                            </TextBlock.Style>
-                                                        </TextBlock>
-                                                        <TextBlock Text="Phases" FontSize="10" FontStyle="Italic"
-                                                                   VerticalAlignment="Center"
-                                                                   Foreground="{DynamicResource IndicatorBrush}" />
-                                                    </StackPanel>
-                                                </ControlTemplate>
-                                            </ToggleButton.Template>
-                                        </ToggleButton>
-
                                         <ItemsControl ItemsSource="{Binding Phases}"
                                                       Visibility="{Binding IsPhaseExpanded, Converter={StaticResource BoolToVisConverter}}">
                                             <ItemsControl.ItemTemplate>
                                                 <DataTemplate>
                                                     <Grid Margin="0,1,0,1">
+                                                        <Grid.Style>
+                                                            <Style TargetType="Grid">
+                                                                <Style.Triggers>
+                                                                    <DataTrigger Binding="{Binding IsTransition}" Value="True">
+                                                                        <Setter Property="Opacity" Value="0.55" />
+                                                                    </DataTrigger>
+                                                                </Style.Triggers>
+                                                            </Style>
+                                                        </Grid.Style>
                                                         <Grid.ColumnDefinitions>
                                                             <ColumnDefinition Width="3.5*" />
                                                             <ColumnDefinition Width="*" />
@@ -1033,8 +1035,18 @@
                                                                    Margin="34,0,0,0"
                                                                    FontSize="11"
                                                                    VerticalAlignment="Center"
-                                                                   Foreground="{DynamicResource IndicatorBrush}" />
-                                                        <TextBlock Grid.Column="2"
+                                                                   Foreground="{DynamicResource IndicatorBrush}">
+                                                            <TextBlock.Style>
+                                                                <Style TargetType="TextBlock">
+                                                                    <Style.Triggers>
+                                                                        <DataTrigger Binding="{Binding IsTransition}" Value="True">
+                                                                            <Setter Property="FontStyle" Value="Italic" />
+                                                                        </DataTrigger>
+                                                                    </Style.Triggers>
+                                                                </Style>
+                                                            </TextBlock.Style>
+                                                        </TextBlock>
+                                                        <TextBlock Grid.Column="1"
                                                                    Text="{Binding Hits}"
                                                                    FontSize="11"
                                                                    HorizontalAlignment="Center" VerticalAlignment="Center"

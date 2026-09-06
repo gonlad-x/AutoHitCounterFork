@@ -101,9 +101,11 @@ public class OverlayProfileManager
     /// </summary>
     private static void EnsureBossTimeDefaults(OverlayConfig c)
     {
+        var d = CreateDefaultConfig();
+        if (string.IsNullOrEmpty(c.PhaseColor)) c.PhaseColor = d.PhaseColor;
+
         if (!string.IsNullOrEmpty(c.BossTimeColor)) return;
 
-        var d = CreateDefaultConfig();
         c.ShowBossTimer = d.ShowBossTimer;
         c.BossTimeColor = d.BossTimeColor;
     }
@@ -298,6 +300,7 @@ public class OverlayProfileManager
             PbMatchesHit = false,
 
             BossTimeColor = "#bbbbbb",
+            PhaseColor = "#888888",
 
             ShowFooterBorder = true,
             FooterBorderHeight = 1,

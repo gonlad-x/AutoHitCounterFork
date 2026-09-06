@@ -147,6 +147,8 @@ public class OverlayConfig
 
     public string BossTimeColor { get; set; }
 
+    public string PhaseColor { get; set; }
+
 
     // Footer Section //
 
