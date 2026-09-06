@@ -972,6 +972,84 @@
                                             </Grid>
                                         </Border>
                                     </Grid>
+
+                                    <!-- Boss phase sub-splits (collapsible) -->
+                                    <StackPanel>
+                                        <StackPanel.Style>
+                                            <Style TargetType="StackPanel">
+                                                <Setter Property="Visibility" Value="Collapsed" />
+                                                <Style.Triggers>
+                                                    <DataTrigger Binding="{Binding HasPhases}" Value="True">
+                                                        <Setter Property="Visibility" Value="Visible" />
+                                                    </DataTrigger>
+                                                </Style.Triggers>
+                                            </Style>
+                                        </StackPanel.Style>
+
+                                        <ToggleButton IsChecked="{Binding IsPhaseExpanded, Mode=TwoWay}"
+                                                      HorizontalAlignment="Left"
+                                                      Margin="20,1,0,0"
+                                                      Cursor="Hand">
+                                            <ToggleButton.Template>
+                                                <ControlTemplate TargetType="ToggleButton">
+                                                    <StackPanel Orientation="Horizontal" Background="Transparent">
+                                                        <TextBlock FontSize="9" VerticalAlignment="Center"
+                                                                   Margin="0,0,4,0"
+                                                                   Foreground="{DynamicResource IndicatorBrush}">
+                                                            <TextBlock.Style>
+                                                                <Style TargetType="TextBlock">
+                                                                    <Setter Property="Text" Value="&#x25B8;" />
+                                                                    <Style.Triggers>
+                                                                        <DataTrigger Binding="{Binding IsPhaseExpanded}" Value="True">
+                                                                            <Setter Property="Text" Value="&#x25BE;" />
+                                                                        </DataTrigger>
+                                                                    </Style.Triggers>
+                                                                </Style>
+                                                            </TextBlock.Style>
+                                                        </TextBlock>
+                                                        <TextBlock Text="Phases" FontSize="10" FontStyle="Italic"
+                                                                   VerticalAlignment="Center"
+                                                                   Foreground="{DynamicResource IndicatorBrush}" />
+                                                    </StackPanel>
+                                                </ControlTemplate>
+                                            </ToggleButton.Template>
+                                        </ToggleButton>
+
+                                        <ItemsControl ItemsSource="{Binding Phases}"
+                                                      Visibility="{Binding IsPhaseExpanded, Converter={StaticResource BoolToVisConverter}}">
+                                            <ItemsControl.ItemTemplate>
+                                                <DataTemplate>
+                                                    <Grid Margin="0,1,0,1">
+                                                        <Grid.ColumnDefinitions>
+                                                            <ColumnDefinition Width="3.5*" />
+                                                            <ColumnDefinition Width="*" />
+                                                            <ColumnDefinition Width="*" />
+                                                            <ColumnDefinition Width="*" />
+                                                            <ColumnDefinition Width="*" />
+                                                            <ColumnDefinition Width="*" />
+                                                        </Grid.ColumnDefinitions>
+                                                        <TextBlock Grid.Column="0"
+                                                                   Text="{Binding Label}"
+                                                                   Margin="34,0,0,0"
+                                                                   FontSize="11"
+                                                                   VerticalAlignment="Center"
+                                                                   Foreground="{DynamicResource IndicatorBrush}" />
+                                                        <TextBlock Grid.Column="2"
+                                                                   Text="{Binding Hits}"
+                                                                   FontSize="11"
+                                                                   HorizontalAlignment="Center" VerticalAlignment="Center"
+                                                                   Foreground="{DynamicResource IndicatorBrush}" />
+                                                        <TextBlock Grid.Column="4"
+                                                                   Text="{Binding TimeDisplay}"
+                                                                   FontFamily="JetBrains Mono"
+                                                                   FontSize="11"
+                                                                   HorizontalAlignment="Center" VerticalAlignment="Center"
+                                                                   Foreground="{DynamicResource IndicatorBrush}" />
+                                                    </Grid>
+                                                </DataTemplate>
+                                            </ItemsControl.ItemTemplate>
+                                        </ItemsControl>
+                                    </StackPanel>
                                 </StackPanel>
                             </DataTemplate>
                         </ListBox.ItemTemplate>

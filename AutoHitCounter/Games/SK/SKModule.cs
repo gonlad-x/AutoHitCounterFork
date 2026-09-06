@@ -39,6 +39,7 @@ public class SKModule : IGameModule, IDisposable, IVersionedGameModule
     public event Action OnRunStart;
     public event Action OnVersionDetected;
     public event Action<uint> OnBossHealthBarSpawn;
+    public event Action<uint> OnBossPhaseTransition;
     public event Action OnBossGaugeActivated;
     public event Action OnGameUnloaded;
 
@@ -135,6 +136,11 @@ public class SKModule : IGameModule, IDisposable, IVersionedGameModule
             OnBossHealthBarSpawn?.Invoke(entityId);
         }
 
+        if (_bossHealthBarService.TryGetPhaseTransition(out var phaseEntityId))
+        {
+            OnBossPhaseTransition?.Invoke(phaseEntityId);
+        }
+
         _eventLogReader.Poll();
 
         var igtPtr  = _memoryService.Read<nint>(SKOffsets.GameDataMan.Base) + SKOffsets.GameDataMan.Igt;
@@ -157,6 +163,7 @@ public class SKModule : IGameModule, IDisposable, IVersionedGameModule
         OnTimeChanged = null;
         OnRunStart = null;
         OnBossHealthBarSpawn = null;
+        OnBossPhaseTransition = null;
         OnBossGaugeActivated = null;
         OnGameUnloaded = null;
     }

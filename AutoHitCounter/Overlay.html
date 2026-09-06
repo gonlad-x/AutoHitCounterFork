@@ -106,6 +106,18 @@
             white-space: nowrap;
         }
 
+        /* Boss phase sub-rows */
+        .phase-row {
+            display: flex;
+            align-items: center;
+            padding: 1px 4px 1px 24px;
+            font-size: 0.82em;
+            opacity: 0.7;
+        }
+        .phase-row .phase-name { flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+        .phase-row .phase-hits { margin-right: 10px; }
+        .phase-row .phase-time { font-family: Consolas, monospace; }
+
         /* Current split when hit (red) */
         .split-row.current.hit {
             animation: highlight-red 0.3s ease-out;
@@ -943,13 +955,23 @@
                 bossTimeCell = config.showBossTimer ? `<span class="col-boss-time">${s.bossTime || ''}</span>` : '';
             }
 
+            let phaseRows = '';
+            if (config.showBossTimer && s.phases && s.phases.length && !s.isParent) {
+                phaseRows = s.phases.map(p =>
+                    `<div class="phase-row">
+                        <span class="phase-name">${escapeHtml(p.label || '')}</span>
+                        <span class="phase-hits">${p.hits}</span>
+                        <span class="phase-time">${p.time || ''}</span>
+                    </div>`).join('');
+            }
+
             return `<div class="split-row${parent}${current}${cleared}${hit}${dpbhighlight}${collapsedClass}${inactiveClass}" style="grid-template-columns: ${cols}">
                 <span class="col-name">${nameHtml}</span>
                 ${hitsCell}
                 ${diffCell}
                 ${pbCell}
                 ${bossTimeCell}
-            </div>`;
+            </div>${phaseRows}`;
         }
 
         applyLayout();

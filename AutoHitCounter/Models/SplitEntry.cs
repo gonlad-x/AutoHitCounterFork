@@ -53,6 +53,10 @@ public class SplitEntry : INotifyPropertyChanged
 
     public long? BossKillTimeBestMs { get; set; }
 
+    // Per-split override for the global "Sub-split on boss phases" setting.
+    // Inherit follows the game's global flag; On/Off force it for this boss.
+    public PhaseSubSplitMode PhaseSubSplitMode { get; set; } = PhaseSubSplitMode.Inherit;
+
     public string Label => DisplayName ?? Name;
     public bool IsAuto => EventId.HasValue;
 

@@ -78,6 +78,7 @@ namespace AutoHitCounter.ViewModels
             _orchestrator.EventLogEntries += entries => _eventLogViewModel?.RefreshEventLogs(entries);
             _orchestrator.TimeChangedMs += UpdateInGameTime;
             _orchestrator.BossHealthBarSpawnDetected += HandleBossHealthBarSpawn;
+            _orchestrator.BossPhaseTransitionDetected += HandlePhaseTransition;
             _orchestrator.BossGaugeActivated += HandleBossGaugeActivated;
             _orchestrator.GameUnloaded += HandleGameUnloaded;
 
@@ -830,6 +831,16 @@ namespace AutoHitCounter.ViewModels
         // same flag should resume it automatically instead of sitting frozen forever.
         private bool _bossTimerAwaitingRestoreResume;
 
+        // Phase sub-split state (Sekiro only). _phaseSubSplitActive is set when the
+        // currently-timed split has phase sub-splitting on; _phaseStartHits is the timed
+        // split's NumOfHits at the start of the in-progress phase (per-phase hits are
+        // derived by subtracting this, so they always sum to the split total).
+        // _bossTimerEntityId is the entity whose bar is currently timed -- used to tell an
+        // entity-SWAP phase (new entity, same flag) apart from a benign same-entity reshow.
+        private bool _phaseSubSplitActive;
+        private int _phaseStartHits;
+        private uint _bossTimerEntityId;
+
         private void HandleBossHealthBarSpawn(uint entityId)
         {
             if (!IsBossTimeTrackersEnabled(_selectedGame)) return;
@@ -869,6 +880,17 @@ namespace AutoHitCounter.ViewModels
                         _bossTimerIsPaused = false;
                         _bossTimerAwaitingRestoreResume = false;
                     }
+
+                    // Entity-SWAP phase transition: the same tracked flag, but a DIFFERENT
+                    // entity's bar now shows (e.g. Genichiro Castle 1110800 -> 1110801). A
+                    // same-entity reshow (benign decapitation/stealth-deathblow prompt) is
+                    // left alone -- a genuine same-entity phase instead refills HP and is
+                    // caught by HandlePhaseTransition.
+                    if (_phaseSubSplitActive && entityId != _bossTimerEntityId)
+                    {
+                        _bossTimerEntityId = entityId;
+                        AdvancePhase();
+                    }
                     return;
                 }
 
@@ -877,7 +899,9 @@ namespace AutoHitCounter.ViewModels
                 _bossTimerIsPaused = false;
                 _bossTimerSplit = i < Splits.Count ? Splits[i] : null;
                 _bossTimerFlag = entry.EventId.Value;
+                _bossTimerEntityId = entityId;
                 if (_bossTimerSplit != null) _bossTimerSplit.BossKillTimeMs = null;
+                StartPhaseTracking(_bossTimerSplit, entry);
                 return;
             }
         }
@@ -939,6 +963,7 @@ namespace AutoHitCounter.ViewModels
             SnapshotBossTimerRestore(split);
             ClearBossTimerState();
             split.BossKillTimeMs = null;
+            split.Phases.Clear();
 
             SaveRunState();
             _overlayServerService.BroadcastState(OverlayMapper.MapFrom(this));
@@ -983,7 +1008,9 @@ namespace AutoHitCounter.ViewModels
             _bossTimerIsPaused = false;
             _bossTimerSplit = CurrentSplit;
             _bossTimerFlag = entry.EventId;
+            _bossTimerEntityId = 0;
             CurrentSplit.BossKillTimeMs = null;
+            StartPhaseTracking(CurrentSplit, entry);
         }
 
         // Resets CurrentSplit's boss timer, bound to the ResetBossTimer hotkey. This fully
@@ -1009,6 +1036,7 @@ namespace AutoHitCounter.ViewModels
                 ClearBossTimerState();
 
             CurrentSplit.BossKillTimeMs = null;
+            CurrentSplit.Phases.Clear();
 
             SaveRunState();
             _overlayServerService.BroadcastState(OverlayMapper.MapFrom(this));
@@ -1023,6 +1051,12 @@ namespace AutoHitCounter.ViewModels
             if (!_bossTimerIsPaused && _bossTimerStartMs is { } startMs)
                 elapsed += BossClockMs - startMs;
 
+            // Capture phase state before ClearBossTimerState wipes it -- the final phase
+            // (the last one fought before the kill) is committed with the whole fight's
+            // real elapsed so the phases sum to BossKillTimeMs.
+            var phaseActive = _phaseSubSplitActive;
+            var phaseStartHits = _phaseStartHits;
+
             ClearBossTimerState();
 
             var entry = GetActiveProfileSplitEntry(split);
@@ -1030,6 +1064,7 @@ namespace AutoHitCounter.ViewModels
             if (elapsed < 0) return;
 
             split.BossKillTimeMs = elapsed;
+            if (phaseActive) CommitLivePhase(split, elapsed, phaseStartHits);
             SaveRunState();
         }
 
@@ -1078,6 +1113,9 @@ namespace AutoHitCounter.ViewModels
             _bossTimerSplit = null;
             _bossTimerFlag = null;
             _bossTimerAwaitingRestoreResume = false;
+            _phaseSubSplitActive = false;
+            _phaseStartHits = 0;
+            _bossTimerEntityId = 0;
         }
 
         // Called right before a clear that would otherwise just discard whatever
@@ -1094,6 +1132,101 @@ namespace AutoHitCounter.ViewModels
             if (ActiveProfile == null || split == null) return null;
             var idx = Splits.IndexOf(split);
             return idx >= 0 && idx < ActiveProfile.Splits.Count ? ActiveProfile.Splits[idx] : null;
+        }
+
+        // HP-refill phase transition (Sekiro): a boss whose bar is up just had its HP snap
+        // back upward -- a deathblow into the next phase on the SAME entity (Genichiro's
+        // pips, Guardian Ape's headless revival). Only acts on the boss currently being
+        // timed; entity-swap phases come through HandleBossHealthBarSpawn instead.
+        private void HandlePhaseTransition(uint entityId)
+        {
+            if (!IsBossTimeTrackersEnabled(_selectedGame)) return;
+            if (_selectedGame != _orchestrator.ActiveGame) return;
+            if (IsPracticeMode || IsRunComplete) return;
+            if (!_phaseSubSplitActive || _bossTimerSplit == null || _bossTimerFlag is not { } flag) return;
+
+            var bossEntityIds = _gameModuleFactory.GetBossEntityIdsForGame(_selectedGame.Title);
+            if (!bossEntityIds.TryGetValue(flag, out var ids) || !ids.Contains(entityId)) return;
+
+            AdvancePhase();
+        }
+
+        // Effective per-split phase-sub-split setting: an explicit On/Off override wins,
+        // otherwise the game's global flag. Sekiro-only -- no other game raises a phase
+        // event, so this stays false for them and no stuck live phase can appear.
+        private bool IsPhaseSubSplitEnabled(SplitEntry entry)
+        {
+            if (entry == null) return false;
+            if (_selectedGame?.Title != GameTitle.Sekiro) return false;
+            return entry.PhaseSubSplitMode switch
+            {
+                PhaseSubSplitMode.On => true,
+                PhaseSubSplitMode.Off => false,
+                _ => SettingsManager.Default.SKPhaseSubSplitEnabled
+            };
+        }
+
+        // Called on every fresh boss-timer start. Resets the split's phase rows and, if
+        // phase sub-splitting is active for it, seeds the first (live) phase.
+        private void StartPhaseTracking(SplitViewModel split, SplitEntry entry)
+        {
+            _phaseSubSplitActive = IsPhaseSubSplitEnabled(entry);
+            _phaseStartHits = split?.NumOfHits ?? 0;
+            split?.Phases.Clear();
+            if (_phaseSubSplitActive && split != null)
+                split.Phases.Add(new PhaseResultViewModel { PhaseNumber = 1, Hits = 0, TimeMs = 0, IsLive = true });
+        }
+
+        // Closes the in-progress phase and opens the next one. Fired on each deathblow/
+        // phase transition (HP refill or entity swap).
+        private void AdvancePhase()
+        {
+            var split = _bossTimerSplit;
+            if (!_phaseSubSplitActive || split == null) return;
+
+            CommitLivePhase(split, CurrentBossElapsedMs(), _phaseStartHits);
+            _phaseStartHits = split.NumOfHits;
+            split.Phases.Add(new PhaseResultViewModel
+            {
+                PhaseNumber = split.Phases.Count + 1,
+                Hits = 0,
+                TimeMs = 0,
+                IsLive = true
+            });
+
+            SaveRunState();
+            _overlayServerService.BroadcastState(OverlayMapper.MapFrom(this));
+        }
+
+        // Updates the live (in-progress) phase's hits/time from the running totals.
+        // Per-phase hits = split total minus the total at this phase's start; per-phase
+        // time = whole-fight elapsed minus the time already banked in completed phases.
+        private void UpdateLivePhase(SplitViewModel split, long totalElapsed, int startHits)
+        {
+            var live = split.Phases.LastOrDefault();
+            if (live is not { IsLive: true }) return;
+
+            live.Hits = split.NumOfHits - startHits;
+            long banked = 0;
+            foreach (var p in split.Phases)
+                if (!p.IsLive) banked += p.TimeMs;
+            live.TimeMs = Math.Max(0, totalElapsed - banked);
+        }
+
+        private void CommitLivePhase(SplitViewModel split, long totalElapsed, int startHits)
+        {
+            var live = split.Phases.LastOrDefault();
+            if (live is not { IsLive: true }) return;
+            UpdateLivePhase(split, totalElapsed, startHits);
+            live.IsLive = false;
+        }
+
+        private long CurrentBossElapsedMs()
+        {
+            var elapsed = _bossTimerAccumulatedMs;
+            if (!_bossTimerIsPaused && _bossTimerStartMs is { } startMs)
+                elapsed += BossClockMs - startMs;
+            return elapsed;
         }
 
         private void HandleRunStart()
@@ -1142,6 +1275,8 @@ namespace AutoHitCounter.ViewModels
 
                 var previousDisplay = _bossTimerSplit.BossKillTimeDisplay;
                 _bossTimerSplit.BossKillTimeMs = newElapsed;
+                if (_phaseSubSplitActive)
+                    UpdateLivePhase(_bossTimerSplit, newElapsed, _phaseStartHits);
                 if (_bossTimerSplit.BossKillTimeDisplay != previousDisplay)
                     _overlayServerService.BroadcastState(OverlayMapper.MapFrom(this));
             }
@@ -1380,6 +1515,7 @@ namespace AutoHitCounter.ViewModels
         {
             var hits = Splits.Select(s => s.NumOfHits).ToArray();
             var bossKillTimes = Splits.Select(s => s.BossKillTimeMs).ToArray();
+            var phases = Splits.Select(s => s.Phases.ToList()).ToArray();
             var currentIndex = CurrentSplit != null ? Splits.IndexOf(CurrentSplit) : -1;
             var selectedIndex = SelectedSplit != null ? Splits.IndexOf(SelectedSplit) : -1;
 
@@ -1390,6 +1526,8 @@ namespace AutoHitCounter.ViewModels
             {
                 Splits[i].NumOfHits = hits[i];
                 Splits[i].BossKillTimeMs = bossKillTimes[i];
+                foreach (var phase in phases[i])
+                    Splits[i].Phases.Add(phase);
             }
 
             if (currentIndex >= 0 && currentIndex < Splits.Count)

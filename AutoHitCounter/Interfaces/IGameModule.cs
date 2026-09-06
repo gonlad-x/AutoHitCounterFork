@@ -15,6 +15,13 @@ public interface IGameModule
     event Action OnRunStart;
     event Action<uint> OnBossHealthBarSpawn;
 
+    // Fires when an already-displayed boss's HP refills back upward -- a deathblow/
+    // phase transition (Genichiro's pips, Guardian Ape's headless revival). Carries
+    // the boss's entity ID, same ID space as OnBossHealthBarSpawn. Only Sekiro raises
+    // it today; the other modules implement it as an inert no-op (interface
+    // conformance), matching OnBossGaugeActivated's pattern.
+    event Action<uint> OnBossPhaseTransition;
+
     // DS2 has no per-boss identifier reachable from the boss-gauge struct (see
     // DS2Offsets.cs/DS2BossGaugeService.cs comments) -- unlike OnBossHealthBarSpawn,
     // this carries no entity ID and always means "attribute this to CurrentSplit",

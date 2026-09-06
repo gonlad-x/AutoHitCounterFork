@@ -28,4 +28,12 @@ public class OverlaySplit
     public bool IsCurrent { get; set; }
     public bool IsParent { get; set; }
     public string BossTime { get; set; }
+    public List<OverlayPhase> Phases { get; set; } = new List<OverlayPhase>();
+}
+
+public class OverlayPhase
+{
+    public string Label { get; set; }
+    public int Hits { get; set; }
+    public string Time { get; set; }
 }

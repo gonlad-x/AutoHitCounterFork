@@ -1,6 +1,7 @@
 ﻿//
 
 using System;
+using System.Collections.ObjectModel;
 using System.Windows;
 using System.Windows.Media;
 using AutoHitCounter.Enums;
@@ -13,6 +14,22 @@ public class SplitViewModel : BaseViewModel
     public SplitViewModel()
     {
         ThemeService.ThemeChanged += OnThemeChanged;
+        Phases.CollectionChanged += (_, _) => OnPropertyChanged(nameof(HasPhases));
+    }
+
+    // Boss-phase sub-rows (a "lap" per deathblow/phase). Completed phases plus, while a
+    // fight is live, the in-progress phase (IsLive) as the last entry. Populated only
+    // when phase sub-splitting is active for this boss; empty otherwise.
+    public ObservableCollection<PhaseResultViewModel> Phases { get; } = new();
+
+    public bool HasPhases => Phases.Count > 0;
+
+    private bool _isPhaseExpanded;
+
+    public bool IsPhaseExpanded
+    {
+        get => _isPhaseExpanded;
+        set => SetProperty(ref _isPhaseExpanded, value);
     }
 
     private string _name;
