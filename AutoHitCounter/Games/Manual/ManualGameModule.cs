@@ -23,7 +23,7 @@ public class ManualGameModule : IGameModule, IDisposable
     public event Action<long> OnTimeChanged;
     public event Action OnRunStart;
     public event Action<uint> OnBossHealthBarSpawn;
-    public event Action<uint> OnBossPhaseTransition; // never raised (no boss gauge)
+    public event Action<uint, int> OnBossNodeChanged; // never raised (no boss health bar)
     public event Action OnBossGaugeActivated;
     public event Action OnGameUnloaded;
 
@@ -71,7 +71,7 @@ public class ManualGameModule : IGameModule, IDisposable
         OnTimeChanged = null;
         OnRunStart = null;
         OnBossHealthBarSpawn = null;
-        OnBossPhaseTransition = null;
+        OnBossNodeChanged = null;
         OnBossGaugeActivated = null;
         OnGameUnloaded = null;
     }

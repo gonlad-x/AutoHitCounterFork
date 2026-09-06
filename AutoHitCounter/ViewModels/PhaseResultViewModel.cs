@@ -4,9 +4,9 @@ using System;
 
 namespace AutoHitCounter.ViewModels;
 
-// A single boss-phase sub-row shown beneath its boss split. IsLive marks the
-// in-progress phase (the one still being fought) -- it ticks its Hits/Time each
-// frame and is excluded from persistence (only completed phases are saved).
+// A single boss sub-row: either a fightable Phase (numbered) or a Transition segment
+// (the downtime between forms -- Genichiro's transform, the Ape's death->revive). IsLive
+// marks the in-progress segment (ticks its Hits/Time, excluded from persistence).
 public class PhaseResultViewModel : BaseViewModel
 {
     private int _phaseNumber;
@@ -17,6 +17,18 @@ public class PhaseResultViewModel : BaseViewModel
         set
         {
             if (SetProperty(ref _phaseNumber, value))
+                OnPropertyChanged(nameof(Label));
+        }
+    }
+
+    private bool _isTransition;
+
+    public bool IsTransition
+    {
+        get => _isTransition;
+        set
+        {
+            if (SetProperty(ref _isTransition, value))
                 OnPropertyChanged(nameof(Label));
         }
     }
@@ -49,7 +61,7 @@ public class PhaseResultViewModel : BaseViewModel
         set => SetProperty(ref _isLive, value);
     }
 
-    public string Label => $"Phase {PhaseNumber}";
+    public string Label => IsTransition ? "transition" : $"Phase {PhaseNumber}";
 
     public string TimeDisplay => TimeSpan.FromMilliseconds(TimeMs).ToString(@"m\:ss");
 }

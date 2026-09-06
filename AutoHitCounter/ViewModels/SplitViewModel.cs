@@ -22,9 +22,13 @@ public class SplitViewModel : BaseViewModel
     // when phase sub-splitting is active for this boss; empty otherwise.
     public ObservableCollection<PhaseResultViewModel> Phases { get; } = new();
 
-    public bool HasPhases => Phases.Count > 0;
+    // Only surface the phase group once a fight actually has more than one segment (a
+    // deathblow/transition happened) -- a single-phase boss shows just its normal row.
+    public bool HasPhases => Phases.Count > 1;
 
-    private bool _isPhaseExpanded;
+    // Expanded by default so the sub-rows are visible without clicking; the toggle still
+    // lets the user collapse a boss's phases.
+    private bool _isPhaseExpanded = true;
 
     public bool IsPhaseExpanded
     {

@@ -293,6 +293,32 @@ public class SettingsViewModel : BaseViewModel
         }
     }
 
+    private bool _skPhaseTransitionsEnabled;
+
+    public bool SKPhaseTransitionsEnabled
+    {
+        get => _skPhaseTransitionsEnabled;
+        set
+        {
+            if (!SetProperty(ref _skPhaseTransitionsEnabled, value)) return;
+            SettingsManager.Default.SKPhaseTransitionsEnabled = value;
+            SettingsManager.Default.Save();
+        }
+    }
+
+    private bool _skStopTimerOnDeathblow;
+
+    public bool SKStopTimerOnDeathblow
+    {
+        get => _skStopTimerOnDeathblow;
+        set
+        {
+            if (!SetProperty(ref _skStopTimerOnDeathblow, value)) return;
+            SettingsManager.Default.SKStopTimerOnDeathblow = value;
+            SettingsManager.Default.Save();
+        }
+    }
+
     #endregion
 
     #region Dark Souls 2
@@ -498,6 +524,12 @@ public class SettingsViewModel : BaseViewModel
 
         _skPhaseSubSplitEnabled = SettingsManager.Default.SKPhaseSubSplitEnabled;
         OnPropertyChanged(nameof(SKPhaseSubSplitEnabled));
+
+        _skPhaseTransitionsEnabled = SettingsManager.Default.SKPhaseTransitionsEnabled;
+        OnPropertyChanged(nameof(SKPhaseTransitionsEnabled));
+
+        _skStopTimerOnDeathblow = SettingsManager.Default.SKStopTimerOnDeathblow;
+        OnPropertyChanged(nameof(SKStopTimerOnDeathblow));
     }
 
     private void ApplyDS2Settings()

@@ -36,4 +36,5 @@ public class OverlayPhase
     public string Label { get; set; }
     public int Hits { get; set; }
     public string Time { get; set; }
+    public bool IsTransition { get; set; }
 }

@@ -141,7 +141,11 @@
                             <CheckBox Content="No Logo" IsChecked="{Binding SKNoLogo}" Margin="0, 0, 5, 0" />
                             <CheckBox Content="No Tutorials" IsChecked="{Binding SKNoTutorials}" Margin="0, 0, 5, 0" />
                             <CheckBox Content="Boss Time Trackers" IsChecked="{Binding SKBossTimeTrackersEnabled}" Margin="0, 0, 5, 0" />
+                        </StackPanel>
+                        <StackPanel Orientation="Horizontal" Margin="0,6,0,0">
                             <CheckBox Content="Sub-split on boss phases" IsChecked="{Binding SKPhaseSubSplitEnabled}" Margin="0, 0, 5, 0" />
+                            <CheckBox Content="Phase transition timer" IsChecked="{Binding SKPhaseTransitionsEnabled}" Margin="0, 0, 5, 0" />
+                            <CheckBox Content="Stop timer on last db (instead of defeat event)" IsChecked="{Binding SKStopTimerOnDeathblow}" Margin="0, 0, 5, 0" />
                         </StackPanel>
                     </StackPanel>
 

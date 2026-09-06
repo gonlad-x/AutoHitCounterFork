@@ -35,7 +35,8 @@ public static class OverlayMapper
                 {
                     Label = p.Label,
                     Hits = p.Hits,
-                    Time = p.TimeDisplay
+                    Time = p.TimeDisplay,
+                    IsTransition = p.IsTransition
                 }).ToList()
             }).ToList()
         };

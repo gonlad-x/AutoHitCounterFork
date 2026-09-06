@@ -11,4 +11,7 @@ public class PhaseResult
 {
     public int Hits { get; set; }
     public long TimeMs { get; set; }
+    // A transition segment is the downtime between forms (Genichiro's transform, Guardian
+    // Ape's death->revive) rather than a fightable phase. Rendered as a dimmer sub-row.
+    public bool IsTransition { get; set; }
 }
