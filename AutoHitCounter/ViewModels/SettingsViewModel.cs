@@ -280,6 +280,19 @@ public class SettingsViewModel : BaseViewModel
         }
     }
 
+    private bool _skPhaseSubSplitEnabled;
+
+    public bool SKPhaseSubSplitEnabled
+    {
+        get => _skPhaseSubSplitEnabled;
+        set
+        {
+            if (!SetProperty(ref _skPhaseSubSplitEnabled, value)) return;
+            SettingsManager.Default.SKPhaseSubSplitEnabled = value;
+            SettingsManager.Default.Save();
+        }
+    }
+
     #endregion
 
     #region Dark Souls 2
@@ -482,6 +495,9 @@ public class SettingsViewModel : BaseViewModel
 
         _skBossTimeTrackersEnabled = SettingsManager.Default.SKBossTimeTrackersEnabled;
         OnPropertyChanged(nameof(SKBossTimeTrackersEnabled));
+
+        _skPhaseSubSplitEnabled = SettingsManager.Default.SKPhaseSubSplitEnabled;
+        OnPropertyChanged(nameof(SKPhaseSubSplitEnabled));
     }
 
     private void ApplyDS2Settings()

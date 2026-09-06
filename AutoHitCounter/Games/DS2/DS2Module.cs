@@ -40,6 +40,7 @@ public class DS2Module : IGameModule, IDisposable, IVersionedGameModule
     public event Action<long> OnTimeChanged;
     public event Action OnRunStart;
     public event Action<uint> OnBossHealthBarSpawn;
+    public event Action<uint> OnBossPhaseTransition; // never raised (Sekiro-only feature)
     public event Action OnBossGaugeActivated;
     public event Action OnGameUnloaded;
     public event Action OnVersionDetected;
@@ -168,6 +169,7 @@ public class DS2Module : IGameModule, IDisposable, IVersionedGameModule
         OnTimeChanged = null;
         OnRunStart = null;
         OnBossHealthBarSpawn = null;
+        OnBossPhaseTransition = null;
         OnBossGaugeActivated = null;
         OnGameUnloaded = null;
     }

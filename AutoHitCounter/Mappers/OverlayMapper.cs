@@ -30,7 +30,13 @@ public static class OverlayMapper
                 Diff = s.Diff,
                 IsCurrent = s.IsCurrent,
                 IsParent = s.IsParent,
-                BossTime = FormatBossTime(s.BossKillTimeMs, s.IsPast)
+                BossTime = FormatBossTime(s.BossKillTimeMs, s.IsPast),
+                Phases = s.Phases.Select(p => new OverlayPhase
+                {
+                    Label = p.Label,
+                    Hits = p.Hits,
+                    Time = p.TimeDisplay
+                }).ToList()
             }).ToList()
         };
     }

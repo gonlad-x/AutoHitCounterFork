@@ -67,6 +67,18 @@ public static class SKOffsets
         {
             // Already known/trusted in SekiroTool's own Offsets.cs.
             public const int EntityId = 0x1A24;
+
+            // Boss HP, reached ChrIns -> Modules(0x1FF8) -> ChrDataModule(0x18) -> Hp(0x130).
+            // Confirmed via Ghidra 2026-09-06: the native boss-gauge HP getter FUN_1405a9c80
+            // is literally `return *(int*)(dataModule + 0x130)`, and MenuMan's per-frame gauge
+            // tracker (FUN_1408cba10) walks exactly this chain off the slot's Handle. Same
+            // module chain SekiroTool already uses for enemy HP/posture (ChrDataModule =
+            // [Modules,0x18], Hp=0x130). Used for HP-refill phase-transition detection --
+            // a boss's HP jumping back up while its gauge stays active marks a deathblow/phase.
+            public const int Modules = 0x1FF8;
+            public const int ChrDataModule = 0x18;
+            public const int Hp = 0x130;
+            public const int MaxHp = 0x134;
         }
     }
 

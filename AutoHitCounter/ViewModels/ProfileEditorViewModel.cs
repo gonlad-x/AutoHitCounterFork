@@ -79,6 +79,9 @@ public class ProfileEditorViewModel : BaseViewModel, IReorderHandler
         EditSplitEventCommand = new DelegateCommand(EditSplitEvent,
             () => SelectedSplit?.Type == SplitType.Child);
 
+        EditPhaseSubSplitCommand = new DelegateCommand(EditPhaseSubSplit,
+            () => IsSekiro && SelectedSplit?.Type == SplitType.Child);
+
         _hideAdded = SettingsManager.Default.HideAdded;
         _allowDuplicates = SettingsManager.Default.AllowDuplicates;
         FilterEvents();
@@ -98,6 +101,11 @@ public class ProfileEditorViewModel : BaseViewModel, IReorderHandler
     public DelegateCommand SaveCommand { get; }
     public DelegateCommand DeleteCommand { get; }
     public DelegateCommand EditSplitEventCommand { get; private set; }
+    public DelegateCommand EditPhaseSubSplitCommand { get; private set; }
+
+    // Phase sub-splitting is a Sekiro-only feature -- the context-menu item hides for
+    // other games' profiles.
+    public bool IsSekiro => _gameTitle == GameTitle.Sekiro;
 
     public DelegateCommand AddSelectedCommand { get; private set; }
     public DelegateCommand RemoveSelectedCommand { get; private set; }
@@ -141,6 +149,7 @@ public class ProfileEditorViewModel : BaseViewModel, IReorderHandler
                 MoveUpCommand.RaiseCanExecuteChange();
                 MoveDownCommand.RaiseCanExecuteChange();
                 EditSplitEventCommand.RaiseCanExecuteChanged();
+                EditPhaseSubSplitCommand.RaiseCanExecuteChanged();
             }
         }
     }
@@ -284,7 +293,8 @@ public class ProfileEditorViewModel : BaseViewModel, IReorderHandler
                 Type = split.Type,
                 GroupId = split.GroupId,
                 Notes = split.Notes,
-                BossKillTimeBestMs = split.BossKillTimeBestMs
+                BossKillTimeBestMs = split.BossKillTimeBestMs,
+                PhaseSubSplitMode = split.PhaseSubSplitMode
             });
 
         FilterEvents();
@@ -569,7 +579,8 @@ public class ProfileEditorViewModel : BaseViewModel, IReorderHandler
                 Type = split.Type,
                 GroupId = split.GroupId,
                 Notes = split.Notes,
-                BossKillTimeBestMs = split.BossKillTimeBestMs
+                BossKillTimeBestMs = split.BossKillTimeBestMs,
+                PhaseSubSplitMode = split.PhaseSubSplitMode
             });
         if (selectedName != null)
             SelectedSplit = Splits.FirstOrDefault(s => s.Name == selectedName);
@@ -636,6 +647,21 @@ public class ProfileEditorViewModel : BaseViewModel, IReorderHandler
         if (!vm.Confirmed) return;
 
         SelectedSplit.EventId = vm.ResultEventId;
+        IsDirty = true;
+    }
+
+    private void EditPhaseSubSplit()
+    {
+        if (SelectedSplit == null || SelectedSplit.Type != SplitType.Child) return;
+
+        var vm = new PhaseSubSplitEditorViewModel(SelectedSplit);
+        var window = new PhaseSubSplitEditorWindow();
+        window.SetViewModel(vm);
+        window.ShowDialog();
+
+        if (!vm.Confirmed) return;
+
+        SelectedSplit.PhaseSubSplitMode = vm.ResultMode;
         IsDirty = true;
     }
 

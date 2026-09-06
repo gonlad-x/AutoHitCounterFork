@@ -47,6 +47,7 @@ public class SettingsManager
     public bool SKNoLogo { get; set; }
     public bool SKNoTutorials { get; set; }
     public bool SKBossTimeTrackersEnabled { get; set; }
+    public bool SKPhaseSubSplitEnabled { get; set; }
     public bool DSRBossTimeTrackersEnabled { get; set; }
     public bool DS2NoBabyJump { get; set; }
     public bool DS2SkipCredits { get; set; }
