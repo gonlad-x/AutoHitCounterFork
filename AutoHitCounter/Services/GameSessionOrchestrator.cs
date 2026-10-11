@@ -14,6 +14,7 @@ public class GameSessionOrchestrator : IGameSessionOrchestrator
     private readonly IMemoryService _memoryService;
     private readonly IHotkeyManager _hotkeyManager;
     private readonly IGameModuleFactory _gameModuleFactory;
+    private readonly ITickService _tickService;
     private IHitRulesProvider _hitRulesProvider;
     private Func<Dictionary<uint, (string Name, int Required, int Hit)>> _activeEventsProvider;
 
@@ -24,15 +25,16 @@ public class GameSessionOrchestrator : IGameSessionOrchestrator
     private bool _eventLogEnabled;
     private AttachmentStatus _attachmentStatus;
 
-    public GameSessionOrchestrator(
-        IMemoryService memoryService,
+    public GameSessionOrchestrator(IMemoryService memoryService,
         IHotkeyManager hotkeyManager,
         IGameModuleFactory gameModuleFactory,
-        IStateService stateService)
+        IStateService stateService,
+        ITickService tickService)
     {
         _memoryService = memoryService;
         _hotkeyManager = hotkeyManager;
         _gameModuleFactory = gameModuleFactory;
+        _tickService = tickService;
 
         stateService.Subscribe(State.Attached, OnAttached);
         stateService.Subscribe(State.NotAttached, OnNotAttached);
@@ -82,6 +84,8 @@ public class GameSessionOrchestrator : IGameSessionOrchestrator
     public void Stop()
     {
         (_currentModule as IDisposable)?.Dispose();
+        _memoryService.StopAutoAttach();
+        _tickService.ResetAttachState();
         _currentModule = null;
         _activeGame = null;
         _isAttached = false;
@@ -149,6 +153,8 @@ public class GameSessionOrchestrator : IGameSessionOrchestrator
 
         if (_activeGame.IsManual)
         {
+            _memoryService.StopAutoAttach();
+            _tickService.ResetAttachState();
             _isAttached = true;
             _attachmentStatus = AttachmentStatus.Attached;
             _attachedText = $"Custom Game: {_activeGame.GameName}";
@@ -169,6 +175,7 @@ public class GameSessionOrchestrator : IGameSessionOrchestrator
                 };
             }
 
+            _tickService.ResetAttachState();
             _memoryService.StartAutoAttach(_activeGame.ProcessName);
         }
 
@@ -188,6 +195,7 @@ public class GameSessionOrchestrator : IGameSessionOrchestrator
 
     private void OnAttached()
     {
+        if (_activeGame?.IsManual == true) return;
         _isAttached = true;
         if (_activeGame != null)
             _attachedText = $"Attached to {_activeGame.GameName}";
@@ -206,7 +214,7 @@ public class GameSessionOrchestrator : IGameSessionOrchestrator
 
     private void OnAttaching()
     {
-        if (_activeGame == null) return;
+        if (_activeGame == null || _activeGame.IsManual) return;
 
         _attachedText = "Attaching...";
         _attachmentStatus = AttachmentStatus.Attaching;
