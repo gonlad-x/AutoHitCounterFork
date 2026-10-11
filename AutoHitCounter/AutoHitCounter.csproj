@@ -134,6 +134,7 @@
     <Compile Include="Enums\AttachmentStatus.cs" />
     <Compile Include="Enums\GameTitle.cs" />
     <Compile Include="Enums\HotkeyActions.cs" />
+    <Compile Include="Enums\PhaseSubSplitMode.cs" />
     <Compile Include="Enums\SplitType.cs" />
     <Compile Include="Enums\NotesDisplayMode.cs" />
     <Compile Include="Enums\OverlayGroupCollapseMode.cs" />
@@ -142,6 +143,7 @@
     <Compile Include="Enums\ThemeMode.cs" />
     <Compile Include="Games\DS2\DS2EventService.cs" />
     <Compile Include="Games\DS2\DS2HitService.cs" />
+    <Compile Include="Games\DS2\DS2BossGaugeService.cs" />
     <Compile Include="Games\DS2\DS2IgtService.cs" />
     <Compile Include="Games\DS2\DS2Module.cs" />
     <Compile Include="Games\DS2\DS2Offsets.cs" />
@@ -149,6 +151,7 @@
     <Compile Include="Games\DS2\DS2Version.cs" />
     <Compile Include="Games\DS2\DS2TimerStatus.cs" />
     <Compile Include="Games\DS2\DS2CustomCodeOffsets.cs" />
+    <Compile Include="Games\DS3\DS3BossHealthBarService.cs" />
     <Compile Include="Games\DS3\DS3CustomCodeOffsets.cs" />
     <Compile Include="Games\DS3\DS3EventService.cs" />
     <Compile Include="Games\DS3\DS3HitService.cs" />
@@ -158,6 +161,7 @@
     <Compile Include="Games\DS3\DS3RunStartService.cs" />
     <Compile Include="Games\DS3\DS3SettingsService.cs" />
     <Compile Include="Games\DS3\DS3Version.cs" />
+    <Compile Include="Games\DSR\DSRBossHealthBarService.cs" />
     <Compile Include="Games\DSR\DSRCustomCodeOffsets.cs" />
     <Compile Include="Games\DSR\DSREventService.cs" />
     <Compile Include="Games\DSR\DSRHitService.cs" />
@@ -166,6 +170,7 @@
     <Compile Include="Games\DSR\DSROriginalBytes.cs" />
     <Compile Include="Games\DSR\DSRRunStartService.cs" />
     <Compile Include="Games\DSR\DSRVersion.cs" />
+    <Compile Include="Games\ER\EldenRingBossHealthBarService.cs" />
     <Compile Include="Games\ER\EldenRingCustomCodeOffsets.cs" />
     <Compile Include="Games\ER\EldenRingEventService.cs" />
     <Compile Include="Games\ER\EldenRingHitService.cs" />
@@ -175,6 +180,7 @@
     <Compile Include="Games\ER\EldenRingRunStartService.cs" />
     <Compile Include="Games\ER\EldenRingSettingsService.cs" />
     <Compile Include="Games\ER\EldenRingVersion.cs" />
+    <Compile Include="Games\SK\SKBossHealthBarService.cs" />
     <Compile Include="Games\SK\SKCustomCodeOffsets.cs" />
     <Compile Include="Games\SK\SKEventService.cs" />
     <Compile Include="Games\SK\SKHitService.cs" />
@@ -218,6 +224,7 @@
     <Compile Include="Models\OverlayState.cs" />
     <Compile Include="Models\Profile.cs" />
     <Compile Include="Models\RunSnapshot.cs" />
+    <Compile Include="Models\PhaseResult.cs" />
     <Compile Include="Models\RunState.cs" />
     <Compile Include="Models\SplitEntry.cs" />
     <Compile Include="Services\CustomGameService.cs" />
@@ -260,13 +267,18 @@
     <Compile Include="ViewModels\OverlaySettingsViewModel.cs" />
     <Compile Include="ViewModels\ProfileEditorViewModel.cs" />
     <Compile Include="ViewModels\SettingsViewModel.cs" />
+    <Compile Include="ViewModels\PhaseSubSplitEditorViewModel.cs" />
     <Compile Include="ViewModels\SplitEventEditorViewModel.cs" />
+    <Compile Include="ViewModels\PhaseResultViewModel.cs" />
     <Compile Include="ViewModels\SplitViewModel.cs" />
     <Compile Include="Views\Controls\HotkeysTab.xaml.cs">
       <DependentUpon>HotkeysTab.xaml</DependentUpon>
     </Compile>
     <Compile Include="Views\Controls\SettingsTab.xaml.cs">
       <DependentUpon>SettingsTab.xaml</DependentUpon>
+    </Compile>
+    <Compile Include="Views\Controls\PhaseSubSplitEditorWindow.xaml.cs">
+      <DependentUpon>PhaseSubSplitEditorWindow.xaml</DependentUpon>
     </Compile>
     <Compile Include="Views\Controls\SplitEventEditorWindow.xaml.cs">
       <DependentUpon>SplitEventEditorWindow.xaml</DependentUpon>
@@ -304,6 +316,7 @@
     <Page Include="Themes\LightTheme.xaml" />
     <Page Include="Views\Controls\HotkeysTab.xaml" />
     <Page Include="Views\Controls\SettingsTab.xaml" />
+    <Page Include="Views\Controls\PhaseSubSplitEditorWindow.xaml" />
     <Page Include="Views\Controls\SplitEventEditorWindow.xaml" />
     <Page Include="Views\Controls\TitleBar.xaml" />
     <Page Include="Views\Windows\CustomMessageBox.xaml" />

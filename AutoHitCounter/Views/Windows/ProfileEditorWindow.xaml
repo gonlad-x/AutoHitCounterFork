@@ -405,6 +405,12 @@
                                 <MenuItem Header="Edit Event"
                                           Command="{Binding PlacementTarget.DataContext.EditSplitEventCommand,
                             RelativeSource={RelativeSource AncestorType=ContextMenu}}" />
+                                <MenuItem Header="Subsplit on boss phases"
+                                          Command="{Binding PlacementTarget.DataContext.EditPhaseSubSplitCommand,
+                            RelativeSource={RelativeSource AncestorType=ContextMenu}}"
+                                          Visibility="{Binding PlacementTarget.DataContext.IsSekiro,
+                            RelativeSource={RelativeSource AncestorType=ContextMenu},
+                            Converter={StaticResource BoolToVisConverter}}" />
                             </ContextMenu>
                         </ListBox.ContextMenu>
 

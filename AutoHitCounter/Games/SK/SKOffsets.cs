@@ -53,6 +53,93 @@ public static class SKOffsets
         public static nint Base;
 
         public const int PlayerIns = 0x88;
+
+        // Array of WorldBlockChr* (8-byte stride), one per loaded map block. Found
+        // via Ghidra 2026-08-14 tracing CS::WorldChrManImp::GetChrSetEntryFromHandle
+        // (the poll-based boss-gauge feature's Handle -> ChrIns resolution,
+        // replicated here as pure reads rather than calling the native function --
+        // see boss-entity-ids-data-mining.md for the full RE writeup). Identical
+        // offset and struct shape to DS3's own WorldChrManImp -- same engine
+        // subsystem, effectively unmodified between the two games.
+        public const int WorldBlockChr0 = 0x518;
+
+        public static class ChrIns
+        {
+            // Already known/trusted in SekiroTool's own Offsets.cs.
+            public const int EntityId = 0x1A24;
+
+            // Boss HP, reached ChrIns -> Modules(0x1FF8) -> ChrDataModule(0x18) -> Hp(0x130).
+            // Confirmed via Ghidra 2026-09-06: the native boss-gauge HP getter FUN_1405a9c80
+            // is literally `return *(int*)(dataModule + 0x130)`, and MenuMan's per-frame gauge
+            // tracker (FUN_1408cba10) walks exactly this chain off the slot's Handle. Same
+            // module chain SekiroTool already uses for enemy HP/posture (ChrDataModule =
+            // [Modules,0x18], Hp=0x130). Used for HP-refill phase-transition detection --
+            // a boss's HP jumping back up while its gauge stays active marks a deathblow/phase.
+            public const int Modules = 0x1FF8;
+            public const int ChrDataModule = 0x18;
+
+            // Boss deathblow/phase node, reached ChrIns -> Modules(0x1FF8) -> ChrDataModule(0x18)
+            // -> +0x25C. Decrements by 1 on each deathblow; the boss's own EzState scripts read
+            // it (getter FUN_140bd5870, EzState condition 0x79) to gate phase transitions, and
+            // SekiroTool writes it (its "CurrentBossNode") to skip Genichiro phases. Confirmed
+            // via a live memory probe (2026-09-06) across Genichiro and Guardian Ape. This is
+            // THE phase signal -- HP is useless here (stays at 1 during deathblow states).
+            public const int BossNode = 0x25C;
+        }
+    }
+
+    // Per WorldBlockChr instance (WorldChrMan.WorldBlockChr0[i]). Found via Ghidra
+    // 2026-08-14 (CS::WorldChrManImp::GetChrSetEntryFromHandle/FUN_140a07b40,
+    // the latter byte-for-byte identical to DS3's own FUN_14089ff50): +0x0 is the
+    // loaded-count, +0x8 points to an array of 0x38-byte entries (ChrSetChrEntry)
+    // whose first 8 bytes are a ChrIns* (confirmed via the Structure Editor).
+    public static class WorldBlockChr
+    {
+        public const int Count = 0x0;
+        public const int Entries = 0x8;
+        public const int EntryStride = 0x38;
+    }
+
+    // MenuMan->BossGauge[0..2], found via Ghidra 2026-08-14 -- see
+    // boss-entity-ids-data-mining.md for the full session writeup. Each slot is
+    // NameId(+0x0)/Handle(+0x4), 0xA8-byte stride, 3 slots (confirmed via
+    // FUN_1408c4c80's own bounds check). NameId == -1 means inactive (unconfirmed
+    // sentinel semantics for this exact field vs. Handle -- both checked together
+    // as "active" by the native code, matching DS3's convention). Handle is not an
+    // opaque value -- it's the same packed FieldInsSelector concept DS3 uses (see
+    // FieldInsMapping below), confirmed via HandleToIndex/FUN_140c33200 decoding
+    // against a FieldInsMapping-shaped table with numerically identical CHR-category
+    // constants to DS3's own table.
+    public static class MenuMan
+    {
+        public static nint Base;
+
+        public const int BossGaugeSlotBase = 0x2E10;
+        public const int BossGaugeStride = 0xA8;
+        public const int BossGaugeSlotCount = 3;
+
+        public const int BossGaugeNameId = 0x0;
+        public const int BossGaugeHandle = 0x4;
+
+        // Separate 3-slot miniboss gauge array, found via Ghidra 2026-08-16
+        // (FUN_1408c51a0, the miniboss-side sibling of FUN_1408c4c80/BossGauge --
+        // "param_7"'s boss/miniboss discriminator flagged but not chased during
+        // the original 2026-08-14 session). Same 0xA8 stride/bounds check as
+        // BossGauge, just a different base offset -- same slot struct reused for
+        // a second array instance, so NameId/Handle offsets carry over unchanged.
+        public const int MiniBossGaugeSlotBase = 0x2C08;
+    }
+
+    // FieldInsSelector decode table, confirmed via Ghidra 2026-08-14 (DAT_143b0f360,
+    // read directly the same way DS3's FieldInsMapping_ARRAY_1445be410 table was --
+    // its CHR entry's name string was read as "CHR" at 0x142a9e2c8, and its
+    // shift/mask values are numerically identical to DS3's own CHR entry).
+    public static class FieldInsMapping
+    {
+        public const uint ChrMapType = 1;
+        public const int ChrBlockIndexShift = 0xE;
+        public const uint ChrBlockIndexMask = 0x3F;
+        public const uint ChrFieldInsIndexMask = 0x3FFF;
     }
 
     public static class GameDataMan
@@ -117,6 +204,17 @@ public static class SKOffsets
             Version1_3_0 or Version1_4_0 => 0x3B68E30,
             Version1_5_0 => 0x3D7A140,
             Version1_6_0 => 0x3D7A1E0,
+            _ => 0
+        };
+
+        // Same values SekiroTool already resolves for this global -- both tools
+        // read the same binary, so these are shared, not independently re-derived.
+        MenuMan.Base = moduleBase + Version switch
+        {
+            Version1_2_0 => 0x3B55048,
+            Version1_3_0 or Version1_4_0 => 0x3B56088,
+            Version1_5_0 => 0x3D67368,
+            Version1_6_0 => 0x3D67408,
             _ => 0
         };
 
@@ -331,6 +429,7 @@ public static class SKOffsets
 
         Console.WriteLine("--- Globals ---");
         PrintOffset("WorldChrMan", WorldChrMan.Base);
+        PrintOffset("MenuMan", MenuMan.Base);
         PrintOffset("GameDataMan", GameDataMan.Base);
         PrintOffset("EventFlagMan", EventFlagMan.Base);
         PrintOffset("FallDmgRetAddr", FallDmgRetAddr);

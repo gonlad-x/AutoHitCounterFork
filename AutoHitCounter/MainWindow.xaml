@@ -14,8 +14,8 @@
         WindowStyle="None"
         AllowsTransparency="True"
         Background="Transparent"
-        Title="Auto Hit Counter" MinHeight="600" MinWidth="525"
-        Height="800" Width="525"
+        Title="Auto Hit Counter" MinHeight="600" MinWidth="620"
+        Height="800" Width="620"
         ResizeMode="CanResize"
         behaviors:WindowResizeBehavior.EnableCustomResize="True">
     <Window.Resources>
@@ -350,7 +350,9 @@
                         <Grid
                             Margin="{Binding IsSplitListScrollbarVisible, Converter={StaticResource ScrollbarVisibleToMarginConverter}}">
                             <Grid.ColumnDefinitions>
-                                <ColumnDefinition Width="4*" />
+                                <ColumnDefinition Width="3.5*" />
+                                <ColumnDefinition Width="*" />
+                                <ColumnDefinition Width="*" />
                                 <ColumnDefinition Width="*" />
                                 <ColumnDefinition Width="*" />
                                 <ColumnDefinition Width="*" />
@@ -476,20 +478,35 @@
 
                             <TextBlock Grid.Column="1"
                                        Text="Hits"
+                                       Margin="2,0,2,0"
                                        FontFamily="{StaticResource AppFont}"
                                        FontSize="{StaticResource FontSizeHeader}"
                                        HorizontalAlignment="Center" VerticalAlignment="Center" />
 
                             <TextBlock Grid.Column="2"
                                        Text="Diff"
-                                       Margin="0,0,7,0"
+                                       Margin="2,0,2,0"
                                        FontFamily="{StaticResource AppFont}"
                                        FontSize="{StaticResource FontSizeHeader}"
                                        HorizontalAlignment="Center" VerticalAlignment="Center" />
 
                             <TextBlock Grid.Column="3"
-                                       Text="PB"
-                                       Margin="0,0,8,0"
+                                       Text="PB (Hits)"
+                                       Margin="2,0,2,0"
+                                       FontFamily="{StaticResource AppFont}"
+                                       FontSize="{StaticResource FontSizeHeader}"
+                                       HorizontalAlignment="Center" VerticalAlignment="Center" />
+
+                            <TextBlock Grid.Column="4"
+                                       Text="Time"
+                                       Margin="2,0,2,0"
+                                       FontFamily="{StaticResource AppFont}"
+                                       FontSize="{StaticResource FontSizeHeader}"
+                                       HorizontalAlignment="Center" VerticalAlignment="Center" />
+
+                            <TextBlock Grid.Column="5"
+                                       Text="PB (Time)"
+                                       Margin="2,0,2,0"
                                        FontFamily="{StaticResource AppFont}"
                                        FontSize="{StaticResource FontSizeHeader}"
                                        HorizontalAlignment="Center" VerticalAlignment="Center" />
@@ -523,11 +540,23 @@
                                 <MenuItem Header="Reset Split Hits"
                                           Command="{Binding PlacementTarget.DataContext.ResetSelectedSplitHitsCommand,
                             RelativeSource={RelativeSource AncestorType=ContextMenu}}" />
+                                <MenuItem Header="Reset Boss Timer"
+                                          Command="{Binding PlacementTarget.DataContext.ResetSelectedSplitBossTimerCommand,
+                            RelativeSource={RelativeSource AncestorType=ContextMenu}}" />
+                                <MenuItem Header="Restore Timer"
+                                          Command="{Binding PlacementTarget.DataContext.RestoreSelectedSplitBossTimerCommand,
+                            RelativeSource={RelativeSource AncestorType=ContextMenu}}" />
                                 <MenuItem Header="Mark split as Distance PB"
                                           Command="{Binding PlacementTarget.DataContext.SetDistancePbCommand,
                             RelativeSource={RelativeSource AncestorType=ContextMenu}}" />
                                 <MenuItem Header="Edit PB"
                                           Command="{Binding PlacementTarget.DataContext.EditSplitPbCommand,
+                            RelativeSource={RelativeSource AncestorType=ContextMenu}}" />
+                                <MenuItem Header="Mark current time as PB"
+                                          Command="{Binding PlacementTarget.DataContext.MarkCurrentTimeAsPbCommand,
+                            RelativeSource={RelativeSource AncestorType=ContextMenu}}" />
+                                <MenuItem Header="Edit Time PB"
+                                          Command="{Binding PlacementTarget.DataContext.EditSplitBossKillTimePbCommand,
                             RelativeSource={RelativeSource AncestorType=ContextMenu}}" />
                                 <MenuItem Header="Clear All Notes"
                                           Command="{Binding PlacementTarget.DataContext.ClearAllNotesCommand,
@@ -612,7 +641,9 @@
                                 <StackPanel Margin="0,2">
                                     <Grid>
                                         <Grid.ColumnDefinitions>
-                                            <ColumnDefinition Width="4*" />
+                                            <ColumnDefinition Width="3.5*" />
+                                            <ColumnDefinition Width="*" />
+                                            <ColumnDefinition Width="*" />
                                             <ColumnDefinition Width="*" />
                                             <ColumnDefinition Width="*" />
                                             <ColumnDefinition Width="*" />
@@ -652,22 +683,44 @@
                                                 </TextBlock.Style>
                                             </TextBlock>
 
-                                            <!-- Name column -->
-                                            <TextBlock Text="{Binding Name}"
-                                                       FontFamily="{StaticResource AppFont}"
-                                                       FontSize="{StaticResource FontSizeBody}"
-                                                       VerticalAlignment="Center"
-                                                       Margin="{Binding Type, Converter={StaticResource ParentChildMarginConverter}}">
-                                                <TextBlock.Style>
-                                                    <Style TargetType="TextBlock">
+                                            <!-- Name column (with a phase expand/collapse arrow when the boss has phases) -->
+                                            <StackPanel Orientation="Horizontal" VerticalAlignment="Center"
+                                                        Margin="{Binding Type, Converter={StaticResource ParentChildMarginConverter}}">
+                                                <StackPanel.Style>
+                                                    <Style TargetType="StackPanel">
                                                         <Style.Triggers>
                                                             <DataTrigger Binding="{Binding IsEditing}" Value="True">
                                                                 <Setter Property="Visibility" Value="Collapsed" />
                                                             </DataTrigger>
                                                         </Style.Triggers>
                                                     </Style>
-                                                </TextBlock.Style>
-                                            </TextBlock>
+                                                </StackPanel.Style>
+                                                <ToggleButton IsChecked="{Binding IsPhaseExpanded, Mode=TwoWay}"
+                                                              Cursor="Hand" Margin="0,0,4,0" VerticalAlignment="Center"
+                                                              Visibility="{Binding HasPhases, Converter={StaticResource BoolToVisConverter}}">
+                                                    <ToggleButton.Template>
+                                                        <ControlTemplate TargetType="ToggleButton">
+                                                            <TextBlock FontSize="9" Background="Transparent"
+                                                                       Foreground="{DynamicResource IndicatorBrush}">
+                                                                <TextBlock.Style>
+                                                                    <Style TargetType="TextBlock">
+                                                                        <Setter Property="Text" Value="&#x25B8;" />
+                                                                        <Style.Triggers>
+                                                                            <DataTrigger Binding="{Binding IsPhaseExpanded}" Value="True">
+                                                                                <Setter Property="Text" Value="&#x25BE;" />
+                                                                            </DataTrigger>
+                                                                        </Style.Triggers>
+                                                                    </Style>
+                                                                </TextBlock.Style>
+                                                            </TextBlock>
+                                                        </ControlTemplate>
+                                                    </ToggleButton.Template>
+                                                </ToggleButton>
+                                                <TextBlock Text="{Binding Name}"
+                                                           FontFamily="{StaticResource AppFont}"
+                                                           FontSize="{StaticResource FontSizeBody}"
+                                                           VerticalAlignment="Center" />
+                                            </StackPanel>
 
                                             <!-- In-line Rename box -->
                                             <TextBox x:Name="RenameBox"
@@ -698,6 +751,7 @@
                                         <TextBlock Grid.Column="1"
                                                    Text="{Binding NumOfHits}"
                                                    Foreground="{Binding HitsBrush}"
+                                                   Margin="2,0,2,0"
                                                    FontFamily="{StaticResource AppFont}"
                                                    FontSize="{StaticResource FontSizeBody}"
                                                    HorizontalAlignment="Center" VerticalAlignment="Center">
@@ -713,7 +767,7 @@
                                         </TextBlock>
                                         <!-- Diff -->
                                         <TextBlock Grid.Column="2"
-
+                                                   Margin="2,0,2,0"
                                                    Text="{Binding Diff}"
                                                    Foreground="{Binding DiffBrush}"
                                                    FontFamily="{StaticResource AppFont}"
@@ -731,6 +785,7 @@
                                         </TextBlock>
                                         <!-- PB -->
                                         <TextBlock Grid.Column="3"
+                                                   Margin="2,0,2,0"
                                                    Text="{Binding PersonalBest, Mode=OneWay}"
                                                    FontFamily="{StaticResource AppFont}"
                                                    FontSize="{StaticResource FontSizeBody}"
@@ -768,8 +823,67 @@
                                             </TextBox.Style>
                                         </TextBox>
 
+                                        <!-- Boss Time -->
+                                        <TextBlock Grid.Column="4"
+                                                   Margin="2,0,2,0"
+                                                   Text="{Binding BossKillTimeDisplay}"
+                                                   Foreground="{Binding BossKillTimeBrush}"
+                                                   FontFamily="JetBrains Mono"
+                                                   FontSize="{StaticResource FontSizeBody}"
+                                                   HorizontalAlignment="Center" VerticalAlignment="Center">
+                                            <TextBlock.Style>
+                                                <Style TargetType="TextBlock">
+                                                    <Style.Triggers>
+                                                        <DataTrigger Binding="{Binding IsParent}" Value="True">
+                                                            <Setter Property="Visibility" Value="Collapsed" />
+                                                        </DataTrigger>
+                                                    </Style.Triggers>
+                                                </Style>
+                                            </TextBlock.Style>
+                                        </TextBlock>
+
+                                        <!-- Boss Time PB -->
+                                        <TextBlock Grid.Column="5"
+                                                   Margin="2,0,2,0"
+                                                   Text="{Binding BossKillTimeBestDisplay}"
+                                                   FontFamily="JetBrains Mono"
+                                                   FontSize="{StaticResource FontSizeBody}"
+                                                   HorizontalAlignment="Center" VerticalAlignment="Center">
+                                            <TextBlock.Style>
+                                                <Style TargetType="TextBlock">
+                                                    <Style.Triggers>
+                                                        <DataTrigger Binding="{Binding IsParent}" Value="True">
+                                                            <Setter Property="Visibility" Value="Collapsed" />
+                                                        </DataTrigger>
+                                                        <DataTrigger Binding="{Binding IsEditingBossKillTimePb}" Value="True">
+                                                            <Setter Property="Visibility" Value="Collapsed" />
+                                                        </DataTrigger>
+                                                    </Style.Triggers>
+                                                </Style>
+                                            </TextBlock.Style>
+                                        </TextBlock>
+                                        <TextBox Grid.Column="5" x:Name="BossTimePbBox"
+                                                 Text="{Binding BossKillTimeBestDisplay, Mode=OneWay}"
+                                                 TextAlignment="Center"
+                                                 HorizontalAlignment="Center"
+                                                 VerticalAlignment="Center"
+                                                 Width="50"
+                                                 KeyDown="BossTimePbBox_KeyDown">
+                                            <TextBox.Style>
+                                                <Style TargetType="TextBox" BasedOn="{StaticResource {x:Type TextBox}}">
+                                                    <Setter Property="Visibility" Value="Collapsed" />
+                                                    <Setter Property="Padding" Value="3,1" />
+                                                    <Style.Triggers>
+                                                        <DataTrigger Binding="{Binding IsEditingBossKillTimePb}" Value="True">
+                                                            <Setter Property="Visibility" Value="Visible" />
+                                                        </DataTrigger>
+                                                    </Style.Triggers>
+                                                </Style>
+                                            </TextBox.Style>
+                                        </TextBox>
+
                                         <!-- Context Menu Indicator -->
-                                        <TextBlock Grid.Column="3"
+                                        <TextBlock Grid.Column="5"
                                                    Text="⋯"
                                                    MouseDown="SplitContextDots_MouseDown"
                                                    Cursor="Hand"
@@ -880,6 +994,74 @@
                                             </Grid>
                                         </Border>
                                     </Grid>
+
+                                    <!-- Boss phase sub-splits (collapsible) -->
+                                    <StackPanel>
+                                        <StackPanel.Style>
+                                            <Style TargetType="StackPanel">
+                                                <Setter Property="Visibility" Value="Collapsed" />
+                                                <Style.Triggers>
+                                                    <DataTrigger Binding="{Binding HasPhases}" Value="True">
+                                                        <Setter Property="Visibility" Value="Visible" />
+                                                    </DataTrigger>
+                                                </Style.Triggers>
+                                            </Style>
+                                        </StackPanel.Style>
+
+                                        <ItemsControl ItemsSource="{Binding Phases}"
+                                                      Visibility="{Binding IsPhaseExpanded, Converter={StaticResource BoolToVisConverter}}">
+                                            <ItemsControl.ItemTemplate>
+                                                <DataTemplate>
+                                                    <Grid Margin="0,1,0,1">
+                                                        <Grid.Style>
+                                                            <Style TargetType="Grid">
+                                                                <Style.Triggers>
+                                                                    <DataTrigger Binding="{Binding IsTransition}" Value="True">
+                                                                        <Setter Property="Opacity" Value="0.55" />
+                                                                    </DataTrigger>
+                                                                </Style.Triggers>
+                                                            </Style>
+                                                        </Grid.Style>
+                                                        <Grid.ColumnDefinitions>
+                                                            <ColumnDefinition Width="3.5*" />
+                                                            <ColumnDefinition Width="*" />
+                                                            <ColumnDefinition Width="*" />
+                                                            <ColumnDefinition Width="*" />
+                                                            <ColumnDefinition Width="*" />
+                                                            <ColumnDefinition Width="*" />
+                                                        </Grid.ColumnDefinitions>
+                                                        <TextBlock Grid.Column="0"
+                                                                   Text="{Binding Label}"
+                                                                   Margin="34,0,0,0"
+                                                                   FontSize="11"
+                                                                   VerticalAlignment="Center"
+                                                                   Foreground="{DynamicResource IndicatorBrush}">
+                                                            <TextBlock.Style>
+                                                                <Style TargetType="TextBlock">
+                                                                    <Style.Triggers>
+                                                                        <DataTrigger Binding="{Binding IsTransition}" Value="True">
+                                                                            <Setter Property="FontStyle" Value="Italic" />
+                                                                        </DataTrigger>
+                                                                    </Style.Triggers>
+                                                                </Style>
+                                                            </TextBlock.Style>
+                                                        </TextBlock>
+                                                        <TextBlock Grid.Column="1"
+                                                                   Text="{Binding Hits}"
+                                                                   FontSize="11"
+                                                                   HorizontalAlignment="Center" VerticalAlignment="Center"
+                                                                   Foreground="{DynamicResource IndicatorBrush}" />
+                                                        <TextBlock Grid.Column="4"
+                                                                   Text="{Binding TimeDisplay}"
+                                                                   FontFamily="JetBrains Mono"
+                                                                   FontSize="11"
+                                                                   HorizontalAlignment="Center" VerticalAlignment="Center"
+                                                                   Foreground="{DynamicResource IndicatorBrush}" />
+                                                    </Grid>
+                                                </DataTemplate>
+                                            </ItemsControl.ItemTemplate>
+                                        </ItemsControl>
+                                    </StackPanel>
                                 </StackPanel>
                             </DataTemplate>
                         </ListBox.ItemTemplate>
@@ -907,6 +1089,7 @@
                                 <ColumnDefinition Width="*" />
                                 <ColumnDefinition Width="*" />
                                 <ColumnDefinition Width="*" />
+                                <ColumnDefinition Width="*" />
                             </Grid.ColumnDefinitions>
                             <TextBlock Grid.Column="0"
                                        Text="Total"
@@ -916,20 +1099,21 @@
                                        VerticalAlignment="Center"
                                        Margin="30,0,0,0" />
                             <TextBlock Grid.Column="1"
+                                       Margin="6,0,6,0"
                                        Text="{Binding TotalHits}"
                                        FontFamily="{StaticResource AppFont}"
                                        FontSize="{StaticResource FontSizeBody}"
                                        Foreground="{Binding TotalHitsBrush}"
                                        HorizontalAlignment="Center" VerticalAlignment="Center" />
                             <TextBlock Grid.Column="2"
-                                       Margin="0,0,4,0"
+                                       Margin="6,0,10,0"
                                        Text="{Binding TotalDiff}"
                                        Foreground="{DynamicResource TotalDiffBrush}"
                                        FontFamily="{StaticResource AppFont}"
                                        FontSize="{StaticResource FontSizeBody}"
                                        HorizontalAlignment="Center" VerticalAlignment="Center" />
                             <TextBlock Grid.Column="3"
-                                       Margin="0,0,8,0"
+                                       Margin="6,0,12,0"
                                        Text="{Binding TotalPb}"
                                        FontFamily="{StaticResource AppFont}"
                                        FontSize="{StaticResource FontSizeBody}"
@@ -987,8 +1171,14 @@
                             <StackPanel Orientation="Horizontal" HorizontalAlignment="Center">
                                 <Button Content="Mark as PB" Margin="4,0"
                                         Command="{Binding SetPbCommand}" />
+                                <Button Content="Mark Times as PBs" Margin="4,0"
+                                        Command="{Binding MarkTimesAsPbCommand}"
+                                        ToolTip="Saves each split's time as its new PB (but only for splits where it's faster than the existing PB)"
+                                        ToolTipService.InitialShowDelay="300" />
                                 <Button Content="Reset" Margin="4,0"
                                         Command="{Binding ResetCommand}" />
+                                <Button Content="Export Run Data" Margin="4,0"
+                                        Command="{Binding ExportRunDataCommand}" />
                             </StackPanel>
                         </StackPanel>
 

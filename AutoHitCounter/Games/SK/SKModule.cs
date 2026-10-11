@@ -24,11 +24,13 @@ public class SKModule : IGameModule, IDisposable, IVersionedGameModule
     public string GameVersion => SKOffsets.IsAobFallback ? "Unknown Patch" : SKOffsets.Version.GetDescription();
 
     private DateTime? _lastHit;
+    private bool _wasLoaded;
     private SKHitService _hitService;
     private SKEventService _eventService;
     private SKSettingsService _settingsService;
     private EventLogReader _eventLogReader;
     private SKRunStartService _runStartService;
+    private SKBossHealthBarService _bossHealthBarService;
 
     public event Action OnHit;
     public event Action OnEventSet;
@@ -36,6 +38,10 @@ public class SKModule : IGameModule, IDisposable, IVersionedGameModule
     public event Action<long> OnTimeChanged;
     public event Action OnRunStart;
     public event Action OnVersionDetected;
+    public event Action<uint> OnBossHealthBarSpawn;
+    public event Action<uint, int> OnBossNodeChanged;
+    public event Action OnBossGaugeActivated;
+    public event Action OnGameUnloaded;
 
     public SKModule(IMemoryService memoryService, IStateService stateService, HookManager hookManager,
         ITickService tickService, Dictionary<uint, (string Name, int Required, int Hit)> events, IHitRulesProvider rules)
@@ -76,6 +82,7 @@ public class SKModule : IGameModule, IDisposable, IVersionedGameModule
             Base + EventLogWriteIdx,
             Base + EventLogBuffer);
         _runStartService = new SKRunStartService(_memoryService, _hookManager);
+        _bossHealthBarService = new SKBossHealthBarService(_memoryService);
         _eventLogReader.EntriesReceived += entries => OnEventLogEntriesReceived?.Invoke(entries);
 
         ApplySettings(onlyEnabled: true);
@@ -83,7 +90,7 @@ public class SKModule : IGameModule, IDisposable, IVersionedGameModule
         _eventService.InstallHook();
         _hitService.InstallHooks();
         _runStartService.InstallHook();
-        
+
         ApplyRules();
 
         _tickService.RegisterGameTick(Tick);
@@ -106,8 +113,12 @@ public class SKModule : IGameModule, IDisposable, IVersionedGameModule
     private void Tick()
     {
         if (_runStartService.IsNewGameStarted()) OnRunStart?.Invoke();
-        
-        if (!IsLoaded()) return;
+
+        var isLoaded = IsLoaded();
+        if (_wasLoaded && !isLoaded) OnGameUnloaded?.Invoke();
+        _wasLoaded = isLoaded;
+
+        if (!isLoaded) return;
 
         if (_hitService.HasHit() && (_lastHit == null || (DateTime.Now - _lastHit.Value).TotalSeconds > 3))
         {
@@ -118,6 +129,16 @@ public class SKModule : IGameModule, IDisposable, IVersionedGameModule
         if (_eventService.ShouldSplit())
         {
             OnEventSet?.Invoke();
+        }
+
+        if (_bossHealthBarService.TryGetLatestSpawn(out var entityId))
+        {
+            OnBossHealthBarSpawn?.Invoke(entityId);
+        }
+
+        if (_bossHealthBarService.TryGetNodeChange(out var nodeEntityId, out var newNode))
+        {
+            OnBossNodeChanged?.Invoke(nodeEntityId, newNode);
         }
 
         _eventLogReader.Poll();
@@ -141,6 +162,10 @@ public class SKModule : IGameModule, IDisposable, IVersionedGameModule
         OnEventLogEntriesReceived = null;
         OnTimeChanged = null;
         OnRunStart = null;
+        OnBossHealthBarSpawn = null;
+        OnBossNodeChanged = null;
+        OnBossGaugeActivated = null;
+        OnGameUnloaded = null;
     }
 
     public void UpdateEvents(Dictionary<uint, (string Name, int Required, int Hit)> events)

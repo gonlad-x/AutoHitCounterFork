@@ -12,4 +12,6 @@ public enum HotkeyActions
     TogglePracticeMode,
     StartTimer,
     PauseTimer,
+    ToggleBossTimer,
+    ResetBossTimer,
 }

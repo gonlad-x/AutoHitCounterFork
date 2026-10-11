@@ -39,14 +39,22 @@ public class SettingsManager
     public bool DS3NoLogo { get; set; }
     public bool DS3StutterFix { get; set; }
     public bool DS3NoOnlineInvasions { get; set; }
+    public bool DS3BossTimeTrackersEnabled { get; set; }
     public bool ERNoLogo { get; set; }
     public bool ERStutterFix { get; set; }
     public bool ERDisableAchievements { get; set; }
+    public bool ERBossTimeTrackersEnabled { get; set; }
     public bool SKNoLogo { get; set; }
     public bool SKNoTutorials { get; set; }
+    public bool SKBossTimeTrackersEnabled { get; set; }
+    public bool SKPhaseSubSplitEnabled { get; set; }
+    [DefaultValue(true)] public bool SKPhaseTransitionsEnabled { get; set; }
+    public bool SKStopTimerOnDeathblow { get; set; }
+    public bool DSRBossTimeTrackersEnabled { get; set; }
     public bool DS2NoBabyJump { get; set; }
     public bool DS2SkipCredits { get; set; }
     public bool DS2DisableDoubleClick { get; set; }
+    public bool DS2BossTimeTrackersEnabled { get; set; }
     public bool ExternalIntegrationEnabled { get; set; }
     public string ExternalIntegrationEndpointUrl { get; set; }
     public string ExternalIntegrationUserIdentifier { get; set; }
@@ -66,6 +74,7 @@ public class SettingsManager
     [DefaultValue(2)] public int ThemeMode { get; set; }
     [DefaultValue(false)] public bool HideAdded { get; set; }
     [DefaultValue(false)] public bool AllowDuplicates { get; set; }
+    [DefaultValue("")] public string DeletedDefaultProfiles { get; set; } = "";
     public void Save()
     {
         try

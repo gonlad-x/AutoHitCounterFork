@@ -3,9 +3,14 @@
 using System;
 using System.Collections.Generic;
 using System.Collections.ObjectModel;
+using System.Diagnostics;
+using System.Globalization;
+using System.IO;
 using System.Linq;
+using System.Text;
 using System.Windows;
 using System.Windows.Media;
+using Microsoft.Win32;
 using AutoHitCounter.Core;
 using AutoHitCounter.Enums;
 using AutoHitCounter.Interfaces;
@@ -64,13 +69,18 @@ namespace AutoHitCounter.ViewModels
                 SaveRunState();
                 _overlayServerService.BroadcastState(OverlayMapper.MapFrom(this));
 
-                var payload = new HitPayload(_orchestrator.ActiveGame, ActiveProfile, CurrentSplit, TotalHits, TotalPb, InGameTime);
+                var payload = new HitPayload(_orchestrator.ActiveGame, ActiveProfile, CurrentSplit, TotalHits, TotalPb,
+                    InGameTime);
                 await externalIntegrationService.SendHitAsync(payload);
             };
             _orchestrator.RunStartDetected += HandleRunStart;
             _orchestrator.EventSetDetected += AutoAdvanceSplit;
             _orchestrator.EventLogEntries += entries => _eventLogViewModel?.RefreshEventLogs(entries);
             _orchestrator.TimeChangedMs += UpdateInGameTime;
+            _orchestrator.BossHealthBarSpawnDetected += HandleBossHealthBarSpawn;
+            _orchestrator.BossNodeChangedDetected += HandleNodeChanged;
+            _orchestrator.BossGaugeActivated += HandleBossGaugeActivated;
+            _orchestrator.GameUnloaded += HandleGameUnloaded;
 
             _splitNav = splitNavigationService;
             _splitNav.Load(Splits);
@@ -80,12 +90,12 @@ namespace AutoHitCounter.ViewModels
             _customGameService = customGameService;
 
             RegisterHotkeys();
-            
+
             _isUnlocked = SettingsManager.Default.IsUnlocked;
 
             ThemeService.ThemeChanged += OnThemeChanged;
             InitialiseCommands();
-            
+
             foreach (var game in _gameModuleFactory.GetRegisteredGames())
                 Games.Add(game);
 
@@ -118,6 +128,10 @@ namespace AutoHitCounter.ViewModels
 
         public DelegateCommand SetPbCommand { get; set; }
 
+        public DelegateCommand MarkTimesAsPbCommand { get; set; }
+
+        public DelegateCommand ExportRunDataCommand { get; set; }
+
         public DelegateCommand SaveNotesCommand { get; set; }
 
         public DelegateCommand ClearAllNotesCommand { get; set; }
@@ -126,6 +140,12 @@ namespace AutoHitCounter.ViewModels
 
         public DelegateCommand ResetSelectedSplitHitsCommand { get; set; }
 
+        public DelegateCommand ResetSelectedSplitBossTimerCommand { get; set; }
+
+        public DelegateCommand RestoreSelectedSplitBossTimerCommand { get; set; }
+
+        public DelegateCommand MarkCurrentTimeAsPbCommand { get; set; }
+
         public DelegateCommand RenameSelectedSplitCommand { get; set; }
 
         public DelegateCommand EditAttemptsCommand { get; set; }
@@ -133,6 +153,8 @@ namespace AutoHitCounter.ViewModels
         public DelegateCommand ClearTotalPbCommand { get; set; }
 
         public DelegateCommand EditSplitPbCommand { get; set; }
+
+        public DelegateCommand EditSplitBossKillTimePbCommand { get; set; }
 
         public DelegateCommand MoveSplitUpCommand { get; set; }
         public DelegateCommand MoveSplitDownCommand { get; set; }
@@ -166,7 +188,7 @@ namespace AutoHitCounter.ViewModels
             get => _isAttached;
             set => SetProperty(ref _isAttached, value);
         }
-        
+
         private AttachmentStatus _attachmentStatus;
 
         public AttachmentStatus AttachmentStatus
@@ -554,12 +576,22 @@ namespace AutoHitCounter.ViewModels
             OpenProfileEditorCommand = new DelegateCommand(OpenProfileEditor);
             OpenEventLogCommand = new DelegateCommand(OpenEventLog);
             ManualSplitCommand = new DelegateCommand(ManualAdvanceSplit);
-            AdvanceSplitCommand = new DelegateCommand(() => _splitNav.Advance());
-            PrevSplitCommand = new DelegateCommand(() => _splitNav.Previous());
+            AdvanceSplitCommand = new DelegateCommand(() =>
+            {
+                ClearBossTimerState();
+                _splitNav.Advance();
+            });
+            PrevSplitCommand = new DelegateCommand(() =>
+            {
+                ClearBossTimerState();
+                _splitNav.Previous();
+            });
             IncrementHitCommand = new DelegateCommand(IncrementHit);
             DecrementHitCommand = new DelegateCommand(DecrementHit);
             ResetCommand = new DelegateCommand(ResetSplits);
             SetPbCommand = new DelegateCommand(SetPb);
+            MarkTimesAsPbCommand = new DelegateCommand(MarkTimesAsPb);
+            ExportRunDataCommand = new DelegateCommand(ExportRunData);
             SetDistancePbCommand = new DelegateCommand(SetDistancePb, CanSetDistancePb);
 
             ClearAllNotesCommand = new DelegateCommand(() =>
@@ -586,6 +618,64 @@ namespace AutoHitCounter.ViewModels
             {
                 if (SelectedSplit == null || SelectedSplit.IsParent) return;
                 SelectedSplit.NumOfHits = 0;
+                _overlayServerService.BroadcastState(OverlayMapper.MapFrom(this));
+            });
+
+            ResetSelectedSplitBossTimerCommand = new DelegateCommand(() =>
+            {
+                if (SelectedSplit == null || SelectedSplit.IsParent) return;
+
+                // If a timer is actively running for this exact split, cancel it too --
+                // otherwise the very next tick would immediately overwrite the reset.
+                if (_bossTimerSplit == SelectedSplit)
+                    ClearBossTimerState();
+
+                SelectedSplit.BossKillTimeMs = null;
+                _overlayServerService.BroadcastState(OverlayMapper.MapFrom(this));
+            });
+
+            // Recovers whatever BossKillTimeMs was showing right before the last
+            // non-kill clear (ResetBossTimer, HandleGameUnloaded, or the IGT-rewind
+            // guard) wiped it -- see SnapshotBossTimerRestore. Lands paused (not
+            // live-ticking): there's no sane igt reference left to resume a live
+            // segment from after time has passed, so this mirrors ToggleBossTimer's
+            // own paused-display state. Resume via the ToggleBossTimer hotkey if
+            // wanted, same as any other paused timer.
+            RestoreSelectedSplitBossTimerCommand = new DelegateCommand(() =>
+            {
+                if (SelectedSplit == null || SelectedSplit.IsParent) return;
+                if (SelectedSplit.BossKillTimeRestoreMs is not { } restoreMs) return;
+
+                var entry = GetActiveProfileSplitEntry(SelectedSplit);
+                if (!IsBossTimerEligible(entry)) return;
+
+                _bossTimerStartMs = null;
+                _bossTimerAccumulatedMs = restoreMs;
+                _bossTimerIsPaused = true;
+                _bossTimerSplit = SelectedSplit;
+                _bossTimerFlag = entry.EventId;
+                _bossTimerAwaitingRestoreResume = true;
+
+                SelectedSplit.BossKillTimeMs = restoreMs;
+                SaveRunState();
+                _overlayServerService.BroadcastState(OverlayMapper.MapFrom(this));
+            });
+
+            // Explicit override, distinct from StopBossTimer's automatic PB check --
+            // always overwrites BossKillTimeBestMs regardless of whether the current
+            // time is actually faster, per explicit user request.
+            MarkCurrentTimeAsPbCommand = new DelegateCommand(() =>
+            {
+                if (SelectedSplit == null || SelectedSplit.IsParent) return;
+                if (SelectedSplit.BossKillTimeMs is not { } ms) return;
+                if (_activeProfile == null) return;
+
+                var index = Splits.IndexOf(SelectedSplit);
+                if (index < 0 || index >= _activeProfile.Splits.Count) return;
+
+                SelectedSplit.BossKillTimeBestMs = ms;
+                _activeProfile.Splits[index].BossKillTimeBestMs = ms;
+                _profileService.SaveProfile(_activeProfile);
                 _overlayServerService.BroadcastState(OverlayMapper.MapFrom(this));
             });
 
@@ -616,6 +706,12 @@ namespace AutoHitCounter.ViewModels
                     SelectedSplit.IsEditingPb = true;
             });
 
+            EditSplitBossKillTimePbCommand = new DelegateCommand(() =>
+            {
+                if (SelectedSplit != null)
+                    SelectedSplit.IsEditingBossKillTimePb = true;
+            });
+
             ToggleLockCommand = new DelegateCommand(() =>
             {
                 IsUnlocked = !IsUnlocked;
@@ -634,7 +730,13 @@ namespace AutoHitCounter.ViewModels
         private void RegisterHotkeys()
         {
             _hotkeyManager.RegisterAction(HotkeyActions.NextSplit, ManualAdvanceSplit);
-            _hotkeyManager.RegisterAction(HotkeyActions.PreviousSplit, () => _splitNav.Previous());
+            _hotkeyManager.RegisterAction(HotkeyActions.PreviousSplit, () =>
+            {
+                ClearBossTimerState();
+                _splitNav.Previous();
+            });
+            _hotkeyManager.RegisterAction(HotkeyActions.ToggleBossTimer, ToggleBossTimer);
+            _hotkeyManager.RegisterAction(HotkeyActions.ResetBossTimer, ResetBossTimer);
 
             _hotkeyManager.RegisterAction(HotkeyActions.Reset, ResetSplits);
             _hotkeyManager.RegisterAction(HotkeyActions.IncrementHit, IncrementHit);
@@ -651,6 +753,7 @@ namespace AutoHitCounter.ViewModels
         private void OnSplitStateChanged()
         {
             UpdateDistancePb();
+            RefreshPastIndicator();
             OnPropertyChanged(nameof(CurrentSplit));
             OnPropertyChanged(nameof(CurrentSplitNumber));
             OnPropertyChanged(nameof(IsRunComplete));
@@ -669,6 +772,21 @@ namespace AutoHitCounter.ViewModels
             AttachedText = _orchestrator.AttachedText;
             AttachmentStatus = _orchestrator.AttachmentStatus;
             OnPropertyChanged(nameof(TrackingText));
+
+            // The auto-split event dictionary lives in the module's event service, which
+            // is created lazily when the game attaches (module Initialize on
+            // State.Attached), seeded from the events snapshot captured back at Track()
+            // time. Any UpdateEvents call made before the service exists -- e.g. a Reset
+            // done while the tool was still attaching/loading in -- silently no-ops
+            // against the null service and is lost, so the first run's dictionary stays
+            // stale (the boss being fought can be pre-marked as already-hit). Re-push the
+            // current events once attached so those pre-attach changes actually take
+            // effect. Idempotent and safe: it's the same call already made on every
+            // split/profile change, GetActiveEvents recomputes Hit from the live cursor,
+            // and it null-safely no-ops on the earlier AttachmentChanged fires that occur
+            // before the service is created.
+            if (_orchestrator.IsAttached && _orchestrator.ActiveGame == _selectedGame)
+                _orchestrator.UpdateEvents(GetActiveEvents());
         }
 
         private void StartTrackingGame()
@@ -688,7 +806,512 @@ namespace AutoHitCounter.ViewModels
             if (_selectedGame != _orchestrator.ActiveGame) return;
             if (IsPracticeMode) return;
             if (CurrentSplit == null) return;
+            StopBossTimer();
             _splitNav.Advance();
+        }
+
+        // Boss-timer clock: real (wall-clock) elapsed time, not IGT -- a boss fight's
+        // duration is measured in actual seconds regardless of the game's IGT trajectory.
+        // Monotonic (Stopwatch), so a segment delta can never go negative the way an
+        // IGT-based one could when IGT rewound on a quitout.
+        private readonly Stopwatch _bossTimerClock = Stopwatch.StartNew();
+        private long BossClockMs => _bossTimerClock.ElapsedMilliseconds;
+
+        private long? _bossTimerStartMs;      // BossClockMs when the current running segment began; null while paused/stopped
+        private long _bossTimerAccumulatedMs; // elapsed folded in from segments before the current one
+        private bool _bossTimerIsPaused;
+        private SplitViewModel _bossTimerSplit;
+        private uint? _bossTimerFlag;          // EventId of the fight currently being timed, for phase-transition detection
+
+        // True only right after Restore Timer lands a split paused. A deliberate
+        // ToggleBossTimer pause should stay frozen until the user explicitly resumes
+        // it (a stray healthbar re-trigger shouldn't silently resume a break taken on
+        // purpose) -- but a Restore-paused timer exists specifically to pick back up
+        // where an unintentional reset left off, so the next real encounter of the
+        // same flag should resume it automatically instead of sitting frozen forever.
+        private bool _bossTimerAwaitingRestoreResume;
+
+        // Phase sub-split state (Sekiro only), driven by the boss's deathblow/phase node
+        // (ChrData+0x25C, see SKBossHealthBarService). The tracked split's Phases collection
+        // holds an ordered mix of Phase and Transition segments; the last one is live.
+        //   _segmentStartHits = split.NumOfHits when the current live segment began (per-
+        //                       segment hits are derived by subtraction, so they sum to total).
+        //   _armed            = a node hit 0 (form ended); the next bar (re)spawn for this
+        //                       fight is a real transition (Ape revive / Genichiro swap).
+        //   _formEndMs/_formEndHits = elapsed/hits captured at that node->0, used to split the
+        //                       phase's time from the transition's downtime.
+        private bool _phaseSubSplitActive;
+        private int _segmentStartHits;
+        private bool _armed;
+        private long _formEndMs;
+        private int _formEndHits;
+
+        // Elapsed at the most recent node->0 (deathblow) of the timed fight. Backs the
+        // "Stop timer on final deathblow" Sekiro option: while armed the boss kill timer
+        // freezes here, and on defeat the recorded time is capped to it (excluding the
+        // final death-animation gap). Independent of phase sub-splitting.
+        private long _lastNodeClearedMs;
+
+        private void HandleBossHealthBarSpawn(uint entityId)
+        {
+            if (!IsBossTimeTrackersEnabled(_selectedGame)) return;
+            if (_selectedGame != _orchestrator.ActiveGame) return;
+            if (IsPracticeMode || IsRunComplete || ActiveProfile == null) return;
+
+            // Search forward from the current split rather than only matching CurrentSplit
+            // itself -- mirrors how the existing flag-based auto-split (GetActiveEvents)
+            // already tolerates the player being ahead of where the split cursor thinks
+            // they are (e.g. attaching mid-run, or practicing a later boss directly).
+            var cutoff = CurrentSplit != null ? Splits.IndexOf(CurrentSplit) : 0;
+            if (cutoff < 0) cutoff = 0;
+
+            var bossEntityIds = _gameModuleFactory.GetBossEntityIdsForGame(_selectedGame.Title);
+
+            for (var i = cutoff; i < ActiveProfile.Splits.Count; i++)
+            {
+                var entry = ActiveProfile.Splits[i];
+                if (entry is not { EventId: not null }) continue;
+                if (!bossEntityIds.TryGetValue(entry.EventId.Value, out var expectedEntityIds)) continue;
+                if (!expectedEntityIds.Contains(entityId)) continue;
+
+                // A bar (re)spawn matching the flag already being timed. On its own this is a
+                // benign reshow (decapitation/stealth prompt) and is left alone -- the clock
+                // only resets via an explicit action. But if we're ARMED (the boss's node just
+                // hit 0), this respawn is a real form change -- Guardian Ape's revive (same
+                // entity) or Genichiro's swap (1110800 -> 1110801) -- so it closes the phase
+                // and opens a transition segment. Same-entity vs different-entity doesn't
+                // matter; the arm gate is what tells a real transition from a benign reshow.
+                if (_bossTimerFlag == entry.EventId.Value)
+                {
+                    if (_bossTimerAwaitingRestoreResume)
+                    {
+                        _bossTimerStartMs = BossClockMs;
+                        _bossTimerIsPaused = false;
+                        _bossTimerAwaitingRestoreResume = false;
+                    }
+
+                    // An armed respawn (revive / swap): a real form change. Clear the arm so
+                    // the boss kill timer un-freezes and catches up the downtime; if phase
+                    // sub-splitting is on, also emit the transition + open the next phase.
+                    if (_armed)
+                    {
+                        if (_phaseSubSplitActive) ConfirmTransition();
+                        else _armed = false;
+                    }
+                    return;
+                }
+
+                _bossTimerStartMs = BossClockMs;
+                _bossTimerAccumulatedMs = 0;
+                _bossTimerIsPaused = false;
+                _bossTimerSplit = i < Splits.Count ? Splits[i] : null;
+                _bossTimerFlag = entry.EventId.Value;
+                if (_bossTimerSplit != null) _bossTimerSplit.BossKillTimeMs = null;
+                StartPhaseTracking(_bossTimerSplit, entry);
+                return;
+            }
+        }
+
+        // DS2-only path: its boss-gauge struct has no per-boss identifier reachable
+        // (see DS2BossGaugeService.cs comments -- the field that looked like one
+        // stayed 0 through live testing), so there's no entity ID to search Splits
+        // for. Instead this always attributes activation to CurrentSplit directly --
+        // same semantics as the manual ToggleBossTimer hotkey below, just triggered
+        // automatically instead of by a keypress. If CurrentSplit is already the one
+        // being timed, this is a no-op (repeat activations from the same fight just
+        // let the running clock continue, matching every other game's policy of
+        // never auto-resetting on a repeat signal).
+        private void HandleBossGaugeActivated()
+        {
+            if (!IsBossTimeTrackersEnabled(_selectedGame)) return;
+            if (_selectedGame != _orchestrator.ActiveGame) return;
+            if (IsPracticeMode || IsRunComplete || CurrentSplit == null) return;
+
+            var entry = GetActiveProfileSplitEntry(CurrentSplit);
+            if (!IsBossTimerEligible(entry)) return;
+
+            if (_bossTimerSplit == CurrentSplit)
+            {
+                if (_bossTimerAwaitingRestoreResume)
+                {
+                    _bossTimerStartMs = BossClockMs;
+                    _bossTimerIsPaused = false;
+                    _bossTimerAwaitingRestoreResume = false;
+                }
+                return;
+            }
+
+            _bossTimerStartMs = BossClockMs;
+            _bossTimerAccumulatedMs = 0;
+            _bossTimerIsPaused = false;
+            _bossTimerSplit = CurrentSplit;
+            _bossTimerFlag = entry.EventId;
+            CurrentSplit.BossKillTimeMs = null;
+        }
+
+        // Fires when the player leaves the game world (quitout to title, or any other
+        // full unload) while a boss timer is actively tracking a split -- resets it
+        // rather than leaving a real-time clock running across the reload. This is now
+        // the sole quitout-reset mechanism: the boss timer measures real time
+        // (BossClockMs) instead of IGT, so the old IGT-rewind guard in UpdateInGameTime
+        // (which existed only because IGT could jump backwards on reload) is gone.
+        // Deliberately narrower than the "no auto-reset on retry" policy elsewhere in
+        // this file (see HandleBossHealthBarSpawn): that policy is about not confusing
+        // a genuine phase transition/reshow for a wipe, but a full game-world unload is
+        // an unambiguous signal the current attempt ended, not a case that policy was
+        // meant to protect.
+        private void HandleGameUnloaded()
+        {
+            if (_selectedGame != _orchestrator.ActiveGame) return;
+            if (_bossTimerSplit == null) return;
+
+            var split = _bossTimerSplit;
+            SnapshotBossTimerRestore(split);
+            ClearBossTimerState();
+            split.BossKillTimeMs = null;
+            split.Phases.Clear();
+
+            SaveRunState();
+            _overlayServerService.BroadcastState(OverlayMapper.MapFrom(this));
+        }
+
+        // Manual start/pause/resume toggle, bound to the ToggleBossTimer hotkey. Unlike
+        // HandleBossHealthBarSpawn this always targets CurrentSplit directly (a manual
+        // press has no detected entity to match against), and pausing folds the elapsed
+        // segment into _bossTimerAccumulatedMs rather than finalizing/recording it --
+        // the fight isn't over, so this deliberately doesn't touch BossKillTimeBestMs.
+        private void ToggleBossTimer()
+        {
+            if (!IsBossTimeTrackersEnabled(_selectedGame)) return;
+            if (_selectedGame != _orchestrator.ActiveGame) return;
+            if (IsPracticeMode || IsRunComplete || CurrentSplit == null) return;
+
+            if (_bossTimerSplit == CurrentSplit)
+            {
+                if (_bossTimerIsPaused)
+                {
+                    _bossTimerStartMs = BossClockMs;
+                    _bossTimerIsPaused = false;
+                    _bossTimerAwaitingRestoreResume = false;
+                }
+                else
+                {
+                    if (_bossTimerStartMs is { } startMs)
+                        _bossTimerAccumulatedMs += BossClockMs - startMs;
+                    _bossTimerStartMs = null;
+                    _bossTimerIsPaused = true;
+                    CurrentSplit.BossKillTimeMs = _bossTimerAccumulatedMs;
+                    SaveRunState();
+                }
+                return;
+            }
+
+            var entry = GetActiveProfileSplitEntry(CurrentSplit);
+            if (!IsBossTimerEligible(entry)) return;
+
+            _bossTimerStartMs = BossClockMs;
+            _bossTimerAccumulatedMs = 0;
+            _bossTimerIsPaused = false;
+            _bossTimerSplit = CurrentSplit;
+            _bossTimerFlag = entry.EventId;
+            CurrentSplit.BossKillTimeMs = null;
+            StartPhaseTracking(CurrentSplit, entry);
+        }
+
+        // Resets CurrentSplit's boss timer, bound to the ResetBossTimer hotkey. This fully
+        // stops and clears tracking -- as if the split had never been encountered this
+        // attempt -- rather than zeroing-but-continuing like a stopwatch reset. That
+        // distinction matters because there's no "left the boss area" detection: without a
+        // full clear, resetting mid-fight (e.g. after quitting out) would leave the clock
+        // live-ticking from 0 forever, even while the player is standing outside the arena.
+        // Only a genuine healthbar spawn (HandleBossHealthBarSpawn's normal reset/start
+        // path) starts it running again from here.
+        private void ResetBossTimer()
+        {
+            if (!IsBossTimeTrackersEnabled(_selectedGame)) return;
+            if (_selectedGame != _orchestrator.ActiveGame) return;
+            if (IsPracticeMode || IsRunComplete || CurrentSplit == null) return;
+
+            var entry = GetActiveProfileSplitEntry(CurrentSplit);
+            if (!IsBossTimerEligible(entry)) return;
+
+            SnapshotBossTimerRestore(CurrentSplit);
+
+            if (_bossTimerSplit == CurrentSplit)
+                ClearBossTimerState();
+
+            CurrentSplit.BossKillTimeMs = null;
+            CurrentSplit.Phases.Clear();
+
+            SaveRunState();
+            _overlayServerService.BroadcastState(OverlayMapper.MapFrom(this));
+        }
+
+        private void StopBossTimer()
+        {
+            var split = _bossTimerSplit;
+            if (split == null) return;
+
+            var elapsed = _bossTimerAccumulatedMs;
+            if (!_bossTimerIsPaused && _bossTimerStartMs is { } startMs)
+                elapsed += BossClockMs - startMs;
+
+            // "Stop timer on final deathblow": record the time at the last node->0 rather than
+            // at the defeat flag, dropping the death-animation gap. The split itself still
+            // advances on the defeat flag with hits intact -- this is purely the timer value.
+            if (SettingsManager.Default.SKStopTimerOnDeathblow && _lastNodeClearedMs > 0)
+                elapsed = _lastNodeClearedMs;
+
+            // Capture phase state before ClearBossTimerState wipes it -- the final (live)
+            // segment is committed with this same elapsed so segments sum to BossKillTimeMs.
+            var phaseActive = _phaseSubSplitActive;
+            var segmentStartHits = _segmentStartHits;
+
+            ClearBossTimerState();
+
+            var entry = GetActiveProfileSplitEntry(split);
+            if (!IsBossTimerEligible(entry)) return;
+            if (elapsed < 0) return;
+
+            split.BossKillTimeMs = elapsed;
+            if (phaseActive) CommitLiveSegment(split, elapsed, split.NumOfHits, segmentStartHits);
+            SaveRunState();
+        }
+
+        // Boss Time Trackers is a real per-game setting now (2026-08-14) -- each game has
+        // its own SettingsManager flag/checkbox, so unchecking one game's box no longer
+        // disables the feature for the other four. This only resolves which flag to read;
+        // for the hook-based games (DS3/Sekiro/ER) the native hook is still installed
+        // unconditionally at attach time regardless of this setting -- it just gates
+        // whether MainViewModel acts on what the hook captures, same as before this
+        // change. Making "unchecked" mean the hook is genuinely not installed/removed
+        // live would need its own follow-up (see boss-timer.md resources doc).
+        private bool IsBossTimeTrackersEnabled(Game game) => game?.Title switch
+        {
+            GameTitle.Sekiro => SettingsManager.Default.SKBossTimeTrackersEnabled,
+            GameTitle.DarkSouls3 => SettingsManager.Default.DS3BossTimeTrackersEnabled,
+            GameTitle.EldenRing => SettingsManager.Default.ERBossTimeTrackersEnabled,
+            GameTitle.DarkSoulsRemastered => SettingsManager.Default.DSRBossTimeTrackersEnabled,
+            GameTitle.DarkSouls2 => SettingsManager.Default.DS2BossTimeTrackersEnabled,
+            _ => false
+        };
+
+        // A split is boss-timer-eligible once the global setting is on (already checked by
+        // every caller before reaching here) and its EventId has a confirmed boss Entity ID
+        // mapping -- i.e. no more per-split opt-in, the global toggle covers every boss
+        // automatically, including ones added to the profile afterward.
+        // DS2 is a special case: it has no per-boss entity-ID table at all (see
+        // DS2BossGaugeService.cs/HandleBossGaugeActivated -- its gauge struct has no
+        // reachable per-boss identifier, so activation always targets CurrentSplit
+        // directly instead of searching for an entity match). Requiring an entity-ID
+        // table entry here would make every DS2 split ineligible, silently blocking
+        // the timer regardless of gauge activation -- any split with an EventId is
+        // eligible for DS2, matching the game-agnostic gate the other four games use
+        // via their own entity-ID tables.
+        private bool IsBossTimerEligible(SplitEntry entry)
+        {
+            if (entry?.EventId is not { } eventId) return false;
+            if (_selectedGame.Title == GameTitle.DarkSouls2) return true;
+            return _gameModuleFactory.GetBossEntityIdsForGame(_selectedGame.Title).ContainsKey(eventId);
+        }
+
+        private void ClearBossTimerState()
+        {
+            _bossTimerStartMs = null;
+            _bossTimerAccumulatedMs = 0;
+            _bossTimerIsPaused = false;
+            _bossTimerSplit = null;
+            _bossTimerFlag = null;
+            _bossTimerAwaitingRestoreResume = false;
+            _phaseSubSplitActive = false;
+            _segmentStartHits = 0;
+            _armed = false;
+            _formEndMs = 0;
+            _formEndHits = 0;
+            _lastNodeClearedMs = 0;
+        }
+
+        // Called right before a clear that would otherwise just discard whatever
+        // BossKillTimeMs was showing (as opposed to StopBossTimer's proper finalize
+        // path, which already logs it). Backs up the live/paused value so "Restore
+        // Timer" can recover it later.
+        private static void SnapshotBossTimerRestore(SplitViewModel split)
+        {
+            if (split?.BossKillTimeMs is { } ms) split.BossKillTimeRestoreMs = ms;
+        }
+
+        private SplitEntry GetActiveProfileSplitEntry(SplitViewModel split)
+        {
+            if (ActiveProfile == null || split == null) return null;
+            var idx = Splits.IndexOf(split);
+            return idx >= 0 && idx < ActiveProfile.Splits.Count ? ActiveProfile.Splits[idx] : null;
+        }
+
+        // A boss's deathblow/phase node (ChrData+0x25C) decremented (Sekiro). Only acts on
+        // the boss currently being timed. newNode>=1 is a same-bar deathblow (a phase
+        // boundary); newNode==0 means the form ended -- arm, so the next bar (re)spawn for
+        // this fight becomes a transition (Ape revive / Genichiro swap). The real kill's
+        // node->0 is closed by the defeat flag (StopBossTimer), never by an arm.
+        private void HandleNodeChanged(uint entityId, int newNode)
+        {
+            if (!IsBossTimeTrackersEnabled(_selectedGame)) return;
+            if (_selectedGame != _orchestrator.ActiveGame) return;
+            if (IsPracticeMode || IsRunComplete) return;
+            if (_bossTimerSplit == null || _bossTimerFlag is not { } flag) return;
+
+            var bossEntityIds = _gameModuleFactory.GetBossEntityIdsForGame(_selectedGame.Title);
+            if (!bossEntityIds.TryGetValue(flag, out var ids) || !ids.Contains(entityId)) return;
+
+            if (newNode == 0)
+            {
+                // The current form ended (deathblow). Arm the next respawn as a transition,
+                // and record the moment for the "stop timer on final deathblow" option.
+                // Both are tracked regardless of whether phase sub-splitting is on.
+                _armed = true;
+                _formEndMs = CurrentBossElapsedMs();
+                _formEndHits = _bossTimerSplit.NumOfHits;
+                _lastNodeClearedMs = _formEndMs;
+            }
+            else // newNode >= 1: same-bar deathblow, the boss form is still up
+            {
+                _armed = false;
+                if (_phaseSubSplitActive) AdvancePhase();
+            }
+        }
+
+        // Effective per-split phase-sub-split setting: an explicit On/Off override wins,
+        // otherwise the game's global flag. Sekiro-only -- no other game raises node
+        // changes, so this stays false for them and no stuck live segment can appear.
+        private bool IsPhaseSubSplitEnabled(SplitEntry entry)
+        {
+            if (entry == null) return false;
+            if (_selectedGame?.Title != GameTitle.Sekiro) return false;
+            return entry.PhaseSubSplitMode switch
+            {
+                PhaseSubSplitMode.On => true,
+                PhaseSubSplitMode.Off => false,
+                _ => SettingsManager.Default.SKPhaseSubSplitEnabled
+            };
+        }
+
+        // Called on every fresh boss-timer start. Resets the split's segment rows and, if
+        // phase sub-splitting is active for it, seeds the first (live) phase.
+        private void StartPhaseTracking(SplitViewModel split, SplitEntry entry)
+        {
+            _phaseSubSplitActive = IsPhaseSubSplitEnabled(entry);
+            _armed = false;
+            _lastNodeClearedMs = 0;
+            _segmentStartHits = split?.NumOfHits ?? 0;
+            split?.Phases.Clear();
+            if (_phaseSubSplitActive && split != null)
+                AddLivePhase(split);
+        }
+
+        // Same-bar deathblow: close the current phase and open the next one.
+        private void AdvancePhase()
+        {
+            var split = _bossTimerSplit;
+            if (!_phaseSubSplitActive || split == null) return;
+
+            CommitLiveSegment(split, CurrentBossElapsedMs(), split.NumOfHits, _segmentStartHits);
+            _armed = false;
+            AddLivePhase(split);
+
+            SaveRunState();
+            _overlayServerService.BroadcastState(OverlayMapper.MapFrom(this));
+        }
+
+        // An armed bar (re)spawn: the form change is real (Ape revive / Genichiro swap).
+        // Close the phase at the form-end (so its time excludes the downtime), emit the
+        // transition segment (form-end -> now), then open the next phase.
+        private void ConfirmTransition()
+        {
+            var split = _bossTimerSplit;
+            if (!_phaseSubSplitActive || split == null) return;
+
+            var now = CurrentBossElapsedMs();
+            if (SettingsManager.Default.SKPhaseTransitionsEnabled)
+            {
+                // Close the phase at the form-end so its time excludes the downtime, then
+                // emit the transition segment (form-end -> now).
+                CommitLiveSegment(split, _formEndMs, _formEndHits, _segmentStartHits);
+                split.Phases.Add(new PhaseResultViewModel
+                {
+                    IsTransition = true,
+                    IsLive = false,
+                    Hits = split.NumOfHits - _formEndHits,
+                    TimeMs = Math.Max(0, now - _formEndMs)
+                });
+            }
+            else
+            {
+                // Transitions off: fold the downtime into the phase that just ended.
+                CommitLiveSegment(split, now, split.NumOfHits, _segmentStartHits);
+            }
+
+            _armed = false;
+            AddLivePhase(split);
+
+            SaveRunState();
+            _overlayServerService.BroadcastState(OverlayMapper.MapFrom(this));
+        }
+
+        // Appends a fresh live Phase segment and marks it the current one.
+        private void AddLivePhase(SplitViewModel split)
+        {
+            split.Phases.Add(new PhaseResultViewModel
+            {
+                PhaseNumber = split.Phases.Count(p => !p.IsTransition) + 1,
+                IsTransition = false,
+                Hits = 0,
+                TimeMs = 0,
+                IsLive = true
+            });
+            _segmentStartHits = split.NumOfHits;
+        }
+
+        // Live-updates the in-progress segment's hits/time each tick. While armed (node at 0,
+        // waiting to see revive-vs-kill) the display is frozen at the form-end values so a
+        // phase doesn't visibly tick up through the downtime before the transition appears.
+        private void UpdateLiveSegment(SplitViewModel split)
+        {
+            var live = split.Phases.LastOrDefault();
+            if (live is not { IsLive: true }) return;
+
+            // Freeze at form-end while armed when either the transition timer owns the
+            // downtime, or "stop timer on final deathblow" is on (so the final phase matches
+            // the capped kill time). Otherwise the phase keeps ticking and absorbs the downtime.
+            var freeze = _armed && (SettingsManager.Default.SKPhaseTransitionsEnabled
+                                    || SettingsManager.Default.SKStopTimerOnDeathblow);
+            var effElapsed = freeze ? _formEndMs : CurrentBossElapsedMs();
+            var effHits = freeze ? _formEndHits : split.NumOfHits;
+            live.Hits = effHits - _segmentStartHits;
+            live.TimeMs = Math.Max(0, effElapsed - SumCommittedMs(split));
+        }
+
+        private void CommitLiveSegment(SplitViewModel split, long endElapsed, int endHits, int startHits)
+        {
+            var live = split.Phases.LastOrDefault();
+            if (live is not { IsLive: true }) return;
+            live.Hits = endHits - startHits;
+            live.TimeMs = Math.Max(0, endElapsed - SumCommittedMs(split));
+            live.IsLive = false;
+        }
+
+        private static long SumCommittedMs(SplitViewModel split)
+        {
+            long banked = 0;
+            foreach (var p in split.Phases)
+                if (!p.IsLive) banked += p.TimeMs;
+            return banked;
+        }
+
+        private long CurrentBossElapsedMs()
+        {
+            var elapsed = _bossTimerAccumulatedMs;
+            if (!_bossTimerIsPaused && _bossTimerStartMs is { } startMs)
+                elapsed += BossClockMs - startMs;
+            return elapsed;
         }
 
         private void HandleRunStart()
@@ -707,6 +1330,7 @@ namespace AutoHitCounter.ViewModels
         private void ManualAdvanceSplit()
         {
             if (CurrentSplit == null) return;
+            StopBossTimer();
             _splitNav.Advance();
         }
 
@@ -719,6 +1343,32 @@ namespace AutoHitCounter.ViewModels
                 _lastIgt = formatted;
                 InGameTimeFormatted = formatted;
                 _overlayServerService.BroadcastIgt(formatted);
+            }
+
+            // Live-updates the current split's boss timer every tick while one is running,
+            // so it visibly ticks up during the fight. Measured off BossClockMs (real
+            // wall-clock time), not IGT, so it counts actual seconds regardless of the
+            // game's IGT trajectory; it only stops advancing when the timer is
+            // paused/stopped or ticks stop firing (detached). Throttled to once per
+            // displayed second (same as the IGT text above) so the overlay isn't
+            // broadcast 10x/second. No rewind guard needed: BossClockMs is monotonic, so
+            // the segment delta is always >= 0 (a quitout mid-fight is instead handled by
+            // HandleGameUnloaded resetting the timer outright).
+            if (_bossTimerStartMs is { } startMs && _bossTimerSplit != null)
+            {
+                var newElapsed = _bossTimerAccumulatedMs + (BossClockMs - startMs);
+
+                // "Stop timer on final deathblow": while a form is down (armed) the boss kill
+                // timer freezes at that deathblow; it un-freezes and catches up if the boss
+                // revives/swaps, or stays frozen if the fight ends (finalized in StopBossTimer).
+                var freezeTimer = SettingsManager.Default.SKStopTimerOnDeathblow && _armed && _lastNodeClearedMs > 0;
+
+                var previousDisplay = _bossTimerSplit.BossKillTimeDisplay;
+                _bossTimerSplit.BossKillTimeMs = freezeTimer ? _lastNodeClearedMs : newElapsed;
+                if (_phaseSubSplitActive)
+                    UpdateLiveSegment(_bossTimerSplit);
+                if (_bossTimerSplit.BossKillTimeDisplay != previousDisplay)
+                    _overlayServerService.BroadcastState(OverlayMapper.MapFrom(this));
             }
         }
 
@@ -803,11 +1453,24 @@ namespace AutoHitCounter.ViewModels
 
         internal void ApplyProfileEditorClosed()
         {
+            var previousActiveProfileName = _activeProfile?.Name;
+
             if (_activeProfile != null)
                 _runStateService.Invalidate(_selectedGame.GameName, _activeProfile.Name);
 
-            var validProfileNames = _profileService.GetProfiles(_selectedGame.GameName).Select(p => p.Name);
-            _runStateService.InvalidateStale(_selectedGame.GameName, validProfileNames);
+            var updatedProfiles = _profileService.GetProfiles(_selectedGame.GameName);
+
+            Profiles.Clear();
+            foreach (var p in updatedProfiles)
+                Profiles.Add(p);
+
+            var stillExists = previousActiveProfileName != null
+                ? Profiles.FirstOrDefault(p => p.Name == previousActiveProfileName)
+                : null;
+
+            ActiveProfile = stillExists ?? Profiles.FirstOrDefault();
+
+            _runStateService.InvalidateStale(_selectedGame.GameName, updatedProfiles.Select(p => p.Name));
         }
 
         private void UpdateSplits()
@@ -828,7 +1491,8 @@ namespace AutoHitCounter.ViewModels
                     Type = split.Type,
                     NumOfHits = 0,
                     PersonalBest = split.PersonalBest,
-                    Notes = split.Notes
+                    Notes = split.Notes,
+                    BossKillTimeBestMs = split.BossKillTimeBestMs
                 };
                 vm.PropertyChanged += (_, _) =>
                 {
@@ -930,9 +1594,18 @@ namespace AutoHitCounter.ViewModels
                 Splits[i].IsDistancePb = i == _activeProfile.DistancePb;
         }
 
+        private void RefreshPastIndicator()
+        {
+            var currentIndex = CurrentSplit != null ? Splits.IndexOf(CurrentSplit) : -1;
+            for (int i = 0; i < Splits.Count; i++)
+                Splits[i].IsPast = currentIndex >= 0 && (i < currentIndex || (IsRunComplete && i == currentIndex));
+        }
+
         private void RefreshSplitValues()
         {
             var hits = Splits.Select(s => s.NumOfHits).ToArray();
+            var bossKillTimes = Splits.Select(s => s.BossKillTimeMs).ToArray();
+            var phases = Splits.Select(s => s.Phases.ToList()).ToArray();
             var currentIndex = CurrentSplit != null ? Splits.IndexOf(CurrentSplit) : -1;
             var selectedIndex = SelectedSplit != null ? Splits.IndexOf(SelectedSplit) : -1;
 
@@ -940,7 +1613,12 @@ namespace AutoHitCounter.ViewModels
             RefreshDistancePbIndicator();
 
             for (int i = 0; i < Splits.Count && i < hits.Length; i++)
+            {
                 Splits[i].NumOfHits = hits[i];
+                Splits[i].BossKillTimeMs = bossKillTimes[i];
+                foreach (var phase in phases[i])
+                    Splits[i].Phases.Add(phase);
+            }
 
             if (currentIndex >= 0 && currentIndex < Splits.Count)
             {
@@ -950,6 +1628,8 @@ namespace AutoHitCounter.ViewModels
 
             if (selectedIndex >= 0 && selectedIndex < Splits.Count)
                 SelectedSplit = Splits[selectedIndex];
+
+            RefreshPastIndicator();
         }
 
         private Dictionary<uint, (string Name, int Required, int Hit)> GetActiveEvents()
@@ -1115,6 +1795,7 @@ namespace AutoHitCounter.ViewModels
             OnPropertyChanged(nameof(TotalPb));
             OnPropertyChanged(nameof(TotalDiff));
             RefreshDistancePbIndicator();
+            RefreshPastIndicator();
             _overlayServerService.BroadcastState(OverlayMapper.MapFrom(this));
         }
 
@@ -1139,6 +1820,7 @@ namespace AutoHitCounter.ViewModels
 
         private void ResetRun()
         {
+            ClearBossTimerState();
             _runStateService.CancelPendingSave();
             UpdateDistancePb();
 
@@ -1166,6 +1848,7 @@ namespace AutoHitCounter.ViewModels
             OnPropertyChanged(nameof(IsRunComplete));
             OnPropertyChanged(nameof(CurrentSplit));
             OnPropertyChanged(nameof(CurrentSplitNumber));
+            RefreshPastIndicator();
             _overlayServerService.BroadcastState(OverlayMapper.MapFrom(this));
             _overlayServerService.BroadcastIgt(InGameTimeFormatted);
         }
@@ -1181,6 +1864,88 @@ namespace AutoHitCounter.ViewModels
 
             _profileService.SaveProfile(ActiveProfile);
             _overlayServerService.BroadcastState(OverlayMapper.MapFrom(this));
+        }
+
+        // Unlike SetPb (hits), this only overwrites a split's time PB if the run's
+        // actual time beats the existing one -- a split with no PB yet always gets
+        // this run's time, but a slower time never overwrites a faster existing PB.
+        private void MarkTimesAsPb()
+        {
+            if (ActiveProfile == null) return;
+
+            for (int i = 0; i < Splits.Count && i < ActiveProfile.Splits.Count; i++)
+            {
+                if (Splits[i].IsParent) continue;
+                if (Splits[i].BossKillTimeMs is not { } ms) continue;
+                if (Splits[i].BossKillTimeBestMs is { } best && best <= ms) continue;
+
+                Splits[i].BossKillTimeBestMs = ms;
+                ActiveProfile.Splits[i].BossKillTimeBestMs = ms;
+            }
+
+            _profileService.SaveProfile(ActiveProfile);
+            RefreshSplitValues();
+            _overlayServerService.BroadcastState(OverlayMapper.MapFrom(this));
+        }
+
+        private static string GetGameInitials(GameTitle? title) => title switch
+        {
+            GameTitle.DarkSoulsRemastered => "DSR",
+            GameTitle.DarkSouls2 => "DS2",
+            GameTitle.DarkSouls3 => "DS3",
+            GameTitle.Sekiro => "SSDT",
+            GameTitle.EldenRing => "ER",
+            GameTitle.Manual => "Manual",
+            _ => "Unknown"
+        };
+
+        private void ExportRunData()
+        {
+            if (ActiveProfile == null) return;
+
+            var invalidChars = Path.GetInvalidFileNameChars();
+            var safeName = new string(ActiveProfile.Name.Select(c => invalidChars.Contains(c) ? '_' : c).ToArray());
+            var gameInitials = GetGameInitials(_selectedGame?.Title);
+
+            var dialog = new SaveFileDialog
+            {
+                Filter = "CSV files (*.csv)|*.csv",
+                DefaultExt = ".csv",
+                FileName = $"{gameInitials}-{safeName}-{AttemptCount}",
+                InitialDirectory = SettingsManager.Default.LastImportExportPath
+            };
+
+            if (dialog.ShowDialog() != true) return;
+
+            SettingsManager.Default.LastImportExportPath = Path.GetDirectoryName(dialog.FileName);
+            SettingsManager.Default.Save();
+
+            var sb = new StringBuilder();
+            sb.AppendLine("Split,Hits,PB,Time");
+
+            foreach (var split in Splits.Where(s => s.Type == SplitType.Child))
+            {
+                sb.AppendLine(string.Join(",",
+                    CsvEscape(split.Name),
+                    split.NumOfHits.ToString(CultureInfo.InvariantCulture),
+                    split.PersonalBest.ToString(CultureInfo.InvariantCulture),
+                    CsvEscape(split.BossKillTimeDisplay)));
+            }
+
+            sb.AppendLine(string.Join(",",
+                "TOTAL",
+                TotalHits.ToString(CultureInfo.InvariantCulture),
+                TotalPb.ToString(CultureInfo.InvariantCulture),
+                CsvEscape(InGameTimeFormatted)));
+
+            File.WriteAllText(dialog.FileName, sb.ToString());
+        }
+
+        private static string CsvEscape(string field)
+        {
+            if (string.IsNullOrEmpty(field)) return "";
+            if (field.IndexOfAny(new[] { ',', '"', '\n', '\r' }) < 0) return field;
+            return $"\"{field.Replace("\"", "\"\"")}\"";
         }
 
         public void CommitPbEdit(SplitViewModel split, string value)
@@ -1200,6 +1965,50 @@ namespace AutoHitCounter.ViewModels
             RefreshSplitValues();
             SetDistancePbCommand?.RaiseCanExecuteChanged();
             _overlayServerService.BroadcastState(OverlayMapper.MapFrom(this));
+        }
+
+        public void CommitBossKillTimePbEdit(SplitViewModel split, string value)
+        {
+            if (TryParseBossKillTime(value, out var ms))
+            {
+                split.BossKillTimeBestMs = ms;
+                var index = Splits.IndexOf(split);
+                if (index >= 0 && index < _activeProfile.Splits.Count)
+                {
+                    _activeProfile.Splits[index].BossKillTimeBestMs = ms;
+                    _profileService.SaveProfile(_activeProfile);
+                }
+            }
+
+            split.IsEditingBossKillTimePb = false;
+            RefreshSplitValues();
+            _overlayServerService.BroadcastState(OverlayMapper.MapFrom(this));
+        }
+
+        // Accepts the same "m:ss" shape BossKillTimeBestDisplay renders, plus a bare
+        // seconds fallback for convenience. Invalid input is silently ignored (keeps
+        // the existing PB), matching CommitPbEdit's own int.TryParse-guarded pattern.
+        private static bool TryParseBossKillTime(string value, out long ms)
+        {
+            ms = 0;
+            if (string.IsNullOrWhiteSpace(value)) return false;
+
+            var parts = value.Split(':');
+            if (parts.Length == 2
+                && int.TryParse(parts[0], out var minutes) && minutes >= 0
+                && int.TryParse(parts[1], out var seconds) && seconds is >= 0 and < 60)
+            {
+                ms = (minutes * 60L + seconds) * 1000L;
+                return true;
+            }
+
+            if (parts.Length == 1 && int.TryParse(parts[0], out var secondsOnly) && secondsOnly >= 0)
+            {
+                ms = secondsOnly * 1000L;
+                return true;
+            }
+
+            return false;
         }
 
         private void IncrementHit()

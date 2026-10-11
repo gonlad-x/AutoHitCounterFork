@@ -37,6 +37,8 @@ public class RunStateService : IRunStateService
         {
             CurrentSplitIndex = currentSplit != null ? splits.IndexOf(currentSplit) : -1,
             HitCounts = children.Select(s => s.NumOfHits).ToArray(),
+            BossKillTimesMs = children.Select(s => s.BossKillTimeMs).ToArray(),
+            PhaseResults = children.Select(SavePhases).ToArray(),
             IsRunComplete = isRunComplete,
             IgtMilliseconds = (long)inGameTime.TotalMilliseconds
         };
@@ -62,19 +64,25 @@ public class RunStateService : IRunStateService
     {
         var children = splits.Where(s => s.Type == SplitType.Child).ToList();
         var hits = children.Select(s => s.NumOfHits).ToArray();
+        var bossKillTimes = children.Select(s => s.BossKillTimeMs).ToArray();
+        var phases = children.Select(SavePhases).ToArray();
         var index = currentSplit != null ? splits.IndexOf(currentSplit) : -1;
-        return new RunSnapshot(index, hits, isRunComplete, inGameTime);
+        return new RunSnapshot(index, hits, bossKillTimes, phases, isRunComplete, inGameTime);
     }
 
     public SplitViewModel RestoreSnapshot(IList<SplitViewModel> splits, RunSnapshot snapshot)
     {
         RestoreHits(splits, snapshot.HitCounts);
+        RestoreBossKillTimes(splits, snapshot.BossKillTimesMs);
+        RestorePhases(splits, snapshot.PhaseResults);
         return FindSplitToRestore(splits, snapshot.CurrentSplitIndex);
     }
 
     public SplitViewModel RestoreFromSavedRun(IList<SplitViewModel> splits, RunState state)
     {
         RestoreHits(splits, state.HitCounts);
+        RestoreBossKillTimes(splits, state.BossKillTimesMs);
+        RestorePhases(splits, state.PhaseResults);
         return FindSplitToRestore(splits, state.CurrentSplitIndex);
     }
 
@@ -124,6 +132,49 @@ public class RunStateService : IRunStateService
         var children = splits.Where(s => s.Type == SplitType.Child).ToList();
         for (int i = 0; i < children.Count && i < hitCounts.Length; i++)
             children[i].NumOfHits = hitCounts[i];
+    }
+
+    // bossKillTimesMs can be null when restoring a RunState saved before this field existed.
+    private static void RestoreBossKillTimes(IList<SplitViewModel> splits, long?[] bossKillTimesMs)
+    {
+        if (bossKillTimesMs == null) return;
+        var children = splits.Where(s => s.Type == SplitType.Child).ToList();
+        for (int i = 0; i < children.Count && i < bossKillTimesMs.Length; i++)
+            children[i].BossKillTimeMs = bossKillTimesMs[i];
+    }
+
+    // Persist only completed phases -- the in-progress (IsLive) phase is transient and
+    // should not survive a save (it re-derives itself once the fight continues).
+    private static PhaseResult[] SavePhases(SplitViewModel split) =>
+        split.Phases
+            .Where(p => !p.IsLive)
+            .Select(p => new PhaseResult { Hits = p.Hits, TimeMs = p.TimeMs, IsTransition = p.IsTransition })
+            .ToArray();
+
+    // phaseResults can be null when restoring a RunState saved before this field existed.
+    private static void RestorePhases(IList<SplitViewModel> splits, PhaseResult[][] phaseResults)
+    {
+        if (phaseResults == null) return;
+        var children = splits.Where(s => s.Type == SplitType.Child).ToList();
+        for (int i = 0; i < children.Count && i < phaseResults.Length; i++)
+        {
+            children[i].Phases.Clear();
+            var results = phaseResults[i];
+            if (results == null) continue;
+            var phaseNo = 0;
+            foreach (var r in results)
+            {
+                if (!r.IsTransition) phaseNo++;
+                children[i].Phases.Add(new PhaseResultViewModel
+                {
+                    PhaseNumber = phaseNo,
+                    IsTransition = r.IsTransition,
+                    Hits = r.Hits,
+                    TimeMs = r.TimeMs,
+                    IsLive = false
+                });
+            }
+        }
     }
 
     private static SplitViewModel FindSplitToRestore(IList<SplitViewModel> splits, int currentSplitIndex)

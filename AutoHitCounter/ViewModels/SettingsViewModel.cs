@@ -20,7 +20,7 @@ public class SettingsViewModel : BaseViewModel
     public event Action OnGameSettingChanged;
 
     public IReadOnlyList<GameTitle> GameTitles { get; } = EnumExtensions.GetValues<GameTitle>()
-        .Where(title => title != GameTitle.DarkSoulsRemastered && title != GameTitle.Manual).ToList();
+        .Where(title => title != GameTitle.Manual).ToList();
 
     private GameTitle _selectedSettingsGame;
     private OverlaySettingsWindow _overlaySettingsWindow;
@@ -163,6 +163,19 @@ public class SettingsViewModel : BaseViewModel
         }
     }
 
+    private bool _erBossTimeTrackersEnabled;
+
+    public bool ERBossTimeTrackersEnabled
+    {
+        get => _erBossTimeTrackersEnabled;
+        set
+        {
+            if (!SetProperty(ref _erBossTimeTrackersEnabled, value)) return;
+            SettingsManager.Default.ERBossTimeTrackersEnabled = value;
+            SettingsManager.Default.Save();
+        }
+    }
+
     #endregion
 
     #region Dark Souls 3
@@ -209,6 +222,19 @@ public class SettingsViewModel : BaseViewModel
         }
     }
 
+    private bool _ds3BossTimeTrackersEnabled;
+
+    public bool DS3BossTimeTrackersEnabled
+    {
+        get => _ds3BossTimeTrackersEnabled;
+        set
+        {
+            if (!SetProperty(ref _ds3BossTimeTrackersEnabled, value)) return;
+            SettingsManager.Default.DS3BossTimeTrackersEnabled = value;
+            SettingsManager.Default.Save();
+        }
+    }
+
     #endregion
 
     #region Sekiro
@@ -238,6 +264,58 @@ public class SettingsViewModel : BaseViewModel
             SettingsManager.Default.SKNoTutorials = value;
             SettingsManager.Default.Save();
             OnGameSettingChanged?.Invoke();
+        }
+    }
+
+    private bool _skBossTimeTrackersEnabled;
+
+    public bool SKBossTimeTrackersEnabled
+    {
+        get => _skBossTimeTrackersEnabled;
+        set
+        {
+            if (!SetProperty(ref _skBossTimeTrackersEnabled, value)) return;
+            SettingsManager.Default.SKBossTimeTrackersEnabled = value;
+            SettingsManager.Default.Save();
+        }
+    }
+
+    private bool _skPhaseSubSplitEnabled;
+
+    public bool SKPhaseSubSplitEnabled
+    {
+        get => _skPhaseSubSplitEnabled;
+        set
+        {
+            if (!SetProperty(ref _skPhaseSubSplitEnabled, value)) return;
+            SettingsManager.Default.SKPhaseSubSplitEnabled = value;
+            SettingsManager.Default.Save();
+        }
+    }
+
+    private bool _skPhaseTransitionsEnabled;
+
+    public bool SKPhaseTransitionsEnabled
+    {
+        get => _skPhaseTransitionsEnabled;
+        set
+        {
+            if (!SetProperty(ref _skPhaseTransitionsEnabled, value)) return;
+            SettingsManager.Default.SKPhaseTransitionsEnabled = value;
+            SettingsManager.Default.Save();
+        }
+    }
+
+    private bool _skStopTimerOnDeathblow;
+
+    public bool SKStopTimerOnDeathblow
+    {
+        get => _skStopTimerOnDeathblow;
+        set
+        {
+            if (!SetProperty(ref _skStopTimerOnDeathblow, value)) return;
+            SettingsManager.Default.SKStopTimerOnDeathblow = value;
+            SettingsManager.Default.Save();
         }
     }
 
@@ -284,6 +362,36 @@ public class SettingsViewModel : BaseViewModel
             SettingsManager.Default.DS2DisableDoubleClick = value;
             SettingsManager.Default.Save();
             OnGameSettingChanged?.Invoke();
+        }
+    }
+
+    private bool _ds2BossTimeTrackersEnabled;
+
+    public bool DS2BossTimeTrackersEnabled
+    {
+        get => _ds2BossTimeTrackersEnabled;
+        set
+        {
+            if (!SetProperty(ref _ds2BossTimeTrackersEnabled, value)) return;
+            SettingsManager.Default.DS2BossTimeTrackersEnabled = value;
+            SettingsManager.Default.Save();
+        }
+    }
+
+    #endregion
+
+    #region Dark Souls Remastered
+
+    private bool _dsrBossTimeTrackersEnabled;
+
+    public bool DSRBossTimeTrackersEnabled
+    {
+        get => _dsrBossTimeTrackersEnabled;
+        set
+        {
+            if (!SetProperty(ref _dsrBossTimeTrackersEnabled, value)) return;
+            SettingsManager.Default.DSRBossTimeTrackersEnabled = value;
+            SettingsManager.Default.Save();
         }
     }
 
@@ -343,6 +451,7 @@ public class SettingsViewModel : BaseViewModel
         ApplyDS3Settings();
         ApplySKSettings();
         ApplyDS2Settings();
+        ApplyDSRSettings();
 
         IsAlwaysOnTopEnabled = SettingsManager.Default.AlwaysOnTop;
 
@@ -382,6 +491,9 @@ public class SettingsViewModel : BaseViewModel
 
         _erDisableAchievements = SettingsManager.Default.ERDisableAchievements;
         OnPropertyChanged(nameof(ERDisableAchievements));
+
+        _erBossTimeTrackersEnabled = SettingsManager.Default.ERBossTimeTrackersEnabled;
+        OnPropertyChanged(nameof(ERBossTimeTrackersEnabled));
     }
 
     private void ApplyDS3Settings()
@@ -394,6 +506,9 @@ public class SettingsViewModel : BaseViewModel
         
         _ds3NoOnlineInvasions = SettingsManager.Default.DS3NoOnlineInvasions;
         OnPropertyChanged(nameof(DS3NoOnlineInvasions));
+
+        _ds3BossTimeTrackersEnabled = SettingsManager.Default.DS3BossTimeTrackersEnabled;
+        OnPropertyChanged(nameof(DS3BossTimeTrackersEnabled));
     }
 
     private void ApplySKSettings()
@@ -403,6 +518,18 @@ public class SettingsViewModel : BaseViewModel
 
         _skNoTutorials = SettingsManager.Default.SKNoTutorials;
         OnPropertyChanged(nameof(SKNoTutorials));
+
+        _skBossTimeTrackersEnabled = SettingsManager.Default.SKBossTimeTrackersEnabled;
+        OnPropertyChanged(nameof(SKBossTimeTrackersEnabled));
+
+        _skPhaseSubSplitEnabled = SettingsManager.Default.SKPhaseSubSplitEnabled;
+        OnPropertyChanged(nameof(SKPhaseSubSplitEnabled));
+
+        _skPhaseTransitionsEnabled = SettingsManager.Default.SKPhaseTransitionsEnabled;
+        OnPropertyChanged(nameof(SKPhaseTransitionsEnabled));
+
+        _skStopTimerOnDeathblow = SettingsManager.Default.SKStopTimerOnDeathblow;
+        OnPropertyChanged(nameof(SKStopTimerOnDeathblow));
     }
 
     private void ApplyDS2Settings()
@@ -415,6 +542,15 @@ public class SettingsViewModel : BaseViewModel
 
         _ds2DisableDoubleClick = SettingsManager.Default.DS2DisableDoubleClick;
         OnPropertyChanged(nameof(DS2DisableDoubleClick));
+
+        _ds2BossTimeTrackersEnabled = SettingsManager.Default.DS2BossTimeTrackersEnabled;
+        OnPropertyChanged(nameof(DS2BossTimeTrackersEnabled));
+    }
+
+    private void ApplyDSRSettings()
+    {
+        _dsrBossTimeTrackersEnabled = SettingsManager.Default.DSRBossTimeTrackersEnabled;
+        OnPropertyChanged(nameof(DSRBossTimeTrackersEnabled));
     }
 
     #endregion

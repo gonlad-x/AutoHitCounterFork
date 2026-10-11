@@ -3,6 +3,7 @@
 using System;
 using System.Collections.Generic;
 using System.Collections.ObjectModel;
+using System.ComponentModel;
 using System.Linq;
 using AutoHitCounter.Core;
 using AutoHitCounter.Enums;
@@ -59,7 +60,7 @@ public class ProfileEditorViewModel : BaseViewModel, IReorderHandler
 
         ClearAutoSplitEventsCommand = new DelegateCommand(ClearEventIds, () => SelectedProfile != null);
 
-        Splits.CollectionChanged += (_, _) =>
+        Splits.CollectionChanged += (_, e) =>
         {
             OnPropertyChanged(nameof(SplitCount));
             OnPropertyChanged(nameof(HasGroups));
@@ -77,6 +78,9 @@ public class ProfileEditorViewModel : BaseViewModel, IReorderHandler
 
         EditSplitEventCommand = new DelegateCommand(EditSplitEvent,
             () => SelectedSplit?.Type == SplitType.Child);
+
+        EditPhaseSubSplitCommand = new DelegateCommand(EditPhaseSubSplit,
+            () => IsSekiro && SelectedSplit?.Type == SplitType.Child);
 
         _hideAdded = SettingsManager.Default.HideAdded;
         _allowDuplicates = SettingsManager.Default.AllowDuplicates;
@@ -97,6 +101,11 @@ public class ProfileEditorViewModel : BaseViewModel, IReorderHandler
     public DelegateCommand SaveCommand { get; }
     public DelegateCommand DeleteCommand { get; }
     public DelegateCommand EditSplitEventCommand { get; private set; }
+    public DelegateCommand EditPhaseSubSplitCommand { get; private set; }
+
+    // Phase sub-splitting is a Sekiro-only feature -- the context-menu item hides for
+    // other games' profiles.
+    public bool IsSekiro => _gameTitle == GameTitle.Sekiro;
 
     public DelegateCommand AddSelectedCommand { get; private set; }
     public DelegateCommand RemoveSelectedCommand { get; private set; }
@@ -140,6 +149,7 @@ public class ProfileEditorViewModel : BaseViewModel, IReorderHandler
                 MoveUpCommand.RaiseCanExecuteChange();
                 MoveDownCommand.RaiseCanExecuteChange();
                 EditSplitEventCommand.RaiseCanExecuteChanged();
+                EditPhaseSubSplitCommand.RaiseCanExecuteChanged();
             }
         }
     }
@@ -282,7 +292,9 @@ public class ProfileEditorViewModel : BaseViewModel, IReorderHandler
                 PersonalBest = split.PersonalBest,
                 Type = split.Type,
                 GroupId = split.GroupId,
-                Notes = split.Notes
+                Notes = split.Notes,
+                BossKillTimeBestMs = split.BossKillTimeBestMs,
+                PhaseSubSplitMode = split.PhaseSubSplitMode
             });
 
         FilterEvents();
@@ -566,7 +578,9 @@ public class ProfileEditorViewModel : BaseViewModel, IReorderHandler
                 PersonalBest = split.PersonalBest,
                 Type = split.Type,
                 GroupId = split.GroupId,
-                Notes = split.Notes
+                Notes = split.Notes,
+                BossKillTimeBestMs = split.BossKillTimeBestMs,
+                PhaseSubSplitMode = split.PhaseSubSplitMode
             });
         if (selectedName != null)
             SelectedSplit = Splits.FirstOrDefault(s => s.Name == selectedName);
@@ -633,6 +647,21 @@ public class ProfileEditorViewModel : BaseViewModel, IReorderHandler
         if (!vm.Confirmed) return;
 
         SelectedSplit.EventId = vm.ResultEventId;
+        IsDirty = true;
+    }
+
+    private void EditPhaseSubSplit()
+    {
+        if (SelectedSplit == null || SelectedSplit.Type != SplitType.Child) return;
+
+        var vm = new PhaseSubSplitEditorViewModel(SelectedSplit);
+        var window = new PhaseSubSplitEditorWindow();
+        window.SetViewModel(vm);
+        window.ShowDialog();
+
+        if (!vm.Confirmed) return;
+
+        SelectedSplit.PhaseSubSplitMode = vm.ResultMode;
         IsDirty = true;
     }
 
@@ -766,6 +795,10 @@ public class ProfileEditorViewModel : BaseViewModel, IReorderHandler
     {
         if (_selectedProfile == null) return;
 
+        var confirmed = MsgBox.ShowYesNo(
+        $"Are you sure you want to delete \"{_selectedProfile.Name}\"?",
+        "Delete Profile");
+        if (!confirmed) return;
         _profileService.DeleteProfile(_gameName, _selectedProfile.Name);
         Profiles.Remove(_selectedProfile);
         SelectedProfile = Profiles.FirstOrDefault();

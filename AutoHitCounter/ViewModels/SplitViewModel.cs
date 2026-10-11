@@ -1,5 +1,7 @@
 ﻿//
 
+using System;
+using System.Collections.ObjectModel;
 using System.Windows;
 using System.Windows.Media;
 using AutoHitCounter.Enums;
@@ -12,6 +14,26 @@ public class SplitViewModel : BaseViewModel
     public SplitViewModel()
     {
         ThemeService.ThemeChanged += OnThemeChanged;
+        Phases.CollectionChanged += (_, _) => OnPropertyChanged(nameof(HasPhases));
+    }
+
+    // Boss-phase sub-rows (a "lap" per deathblow/phase). Completed phases plus, while a
+    // fight is live, the in-progress phase (IsLive) as the last entry. Populated only
+    // when phase sub-splitting is active for this boss; empty otherwise.
+    public ObservableCollection<PhaseResultViewModel> Phases { get; } = new();
+
+    // Only surface the phase group once a fight actually has more than one segment (a
+    // deathblow/transition happened) -- a single-phase boss shows just its normal row.
+    public bool HasPhases => Phases.Count > 1;
+
+    // Expanded by default so the sub-rows are visible without clicking; the toggle still
+    // lets the user collapse a boss's phases.
+    private bool _isPhaseExpanded = true;
+
+    public bool IsPhaseExpanded
+    {
+        get => _isPhaseExpanded;
+        set => SetProperty(ref _isPhaseExpanded, value);
     }
 
     private string _name;
@@ -74,6 +96,80 @@ public class SplitViewModel : BaseViewModel
         get => _isAuto;
         set => SetProperty(ref _isAuto, value);
     }
+
+    private long? _bossKillTimeMs;
+
+    public long? BossKillTimeMs
+    {
+        get => _bossKillTimeMs;
+        set
+        {
+            if (SetProperty(ref _bossKillTimeMs, value))
+            {
+                OnPropertyChanged(nameof(BossKillTimeDisplay));
+                OnPropertyChanged(nameof(BossKillTimeBrush));
+            }
+        }
+    }
+
+    private long? _bossKillTimeBestMs;
+
+    public long? BossKillTimeBestMs
+    {
+        get => _bossKillTimeBestMs;
+        set
+        {
+            if (SetProperty(ref _bossKillTimeBestMs, value))
+            {
+                OnPropertyChanged(nameof(BossKillTimeBestDisplay));
+                OnPropertyChanged(nameof(BossKillTimeBrush));
+            }
+        }
+    }
+
+    // Green when the split is actually done (IsPast -- the same "completed" signal
+    // used elsewhere for this split) and its kill time beats its own PB. Gated on
+    // IsPast specifically so a still-live-ticking timer never flashes green just
+    // because it's transiently under the PB mid-fight -- only a finished kill counts.
+    // Same better-than-PB-is-green convention as DiffBrush, just no "worse" case
+    // since there's no time-diff column to attach that to.
+    public Brush BossKillTimeBrush => IsPast && BossKillTimeMs is { } ms && BossKillTimeBestMs is { } best && ms < best
+        ? GetBrush("DiffNegativeBrush")
+        : GetBrush("DiffNeutralBrush");
+
+    // Session-only (not persisted to SplitEntry) snapshot of whatever BossKillTimeMs
+    // last held right before a non-kill clear (ResetBossTimer, HandleGameUnloaded, the
+    // IGT-rewind guard) wiped it -- lets "Restore Timer" recover a run that got reset
+    // by something other than the player deliberately choosing to reset it (e.g. a
+    // quitout or warp mid-attempt).
+    public long? BossKillTimeRestoreMs { get; set; }
+
+    private bool _isPast;
+
+    // Set by MainViewModel whenever the current-split cursor moves -- true for any split
+    // already behind the cursor (or all splits once the run is complete), regardless of
+    // whether it's boss-timer-eligible. Drives the "-" for a passed split with no time.
+    public bool IsPast
+    {
+        get => _isPast;
+        set
+        {
+            if (SetProperty(ref _isPast, value))
+            {
+                OnPropertyChanged(nameof(BossKillTimeDisplay));
+                OnPropertyChanged(nameof(BossKillTimeBestDisplay));
+                OnPropertyChanged(nameof(BossKillTimeBrush));
+            }
+        }
+    }
+
+    public string BossKillTimeDisplay => BossKillTimeMs is { } ms
+        ? TimeSpan.FromMilliseconds(ms).ToString(@"m\:ss")
+        : IsPast ? "-" : "";
+
+    public string BossKillTimeBestDisplay => BossKillTimeBestMs is { } ms
+        ? TimeSpan.FromMilliseconds(ms).ToString(@"m\:ss")
+        : IsPast ? "-" : "";
 
     private SplitType _type = SplitType.Child;
 
@@ -155,10 +251,24 @@ public class SplitViewModel : BaseViewModel
 
     private bool _isEditingPb;
 
+    public bool IsEditingBossKillTimePb
+    {
+        get => _isEditingBossKillTimePb;
+        set
+        {
+            _isEditingBossKillTimePb = value;
+            OnPropertyChanged();
+        }
+    }
+
+    private bool _isEditingBossKillTimePb;
+
     public void RefreshLayout()
     {
         OnPropertyChanged(nameof(IsEditingPb));
         OnPropertyChanged(nameof(PersonalBest));
+        OnPropertyChanged(nameof(IsEditingBossKillTimePb));
+        OnPropertyChanged(nameof(BossKillTimeBestDisplay));
     }
 
     private void OnThemeChanged()

@@ -24,10 +24,12 @@ public class EldenRingModule : IGameModule, IDisposable, IVersionedGameModule
     private EldenRingSettingsService _settingsService;
     private EventLogReader _eventLogReader;
     private IRunStartService _runStartService;
-    
+    private EldenRingBossHealthBarService _bossHealthBarService;
+
     public string GameVersion => EldenRingOffsets.IsAobFallback ? "Unknown Patch" : EldenRingOffsets.Version.GetDescription();
 
     private DateTime? _lastHit;
+    private bool _wasLoaded;
 
     public event Action OnHit;
 
@@ -35,6 +37,10 @@ public class EldenRingModule : IGameModule, IDisposable, IVersionedGameModule
     public event Action<List<EventLogEntry>> OnEventLogEntriesReceived;
     public event Action<long> OnTimeChanged;
     public event Action OnRunStart;
+    public event Action<uint> OnBossHealthBarSpawn;
+    public event Action<uint, int> OnBossNodeChanged; // never raised (Sekiro-only feature)
+    public event Action OnBossGaugeActivated;
+    public event Action OnGameUnloaded;
     public event Action OnVersionDetected;
     
     public EldenRingModule(IMemoryService memoryService, IStateService stateService, HookManager hookManager,
@@ -67,14 +73,15 @@ public class EldenRingModule : IGameModule, IDisposable, IVersionedGameModule
             Base + EventLogWriteIdx,
             Base + EventLogBuffer);
         _runStartService = new EldenRingRunStartService(_memoryService, _hookManager);
+        _bossHealthBarService = new EldenRingBossHealthBarService(_memoryService);
         _eventLogReader.EntriesReceived += entries => OnEventLogEntriesReceived?.Invoke(entries);
 
         ApplySettings(onlyEnabled: true);
-        
+
         _eventService.InstallHook();
         _hitService.InstallHooks();
         _runStartService.InstallHook();
-        
+
         _tickService.RegisterGameTick(Tick);
         
         OnVersionDetected?.Invoke();
@@ -95,8 +102,12 @@ public class EldenRingModule : IGameModule, IDisposable, IVersionedGameModule
     private void Tick()
     {
         if (_runStartService.IsNewGameStarted()) OnRunStart?.Invoke();
-        
-        if (!IsLoaded())
+
+        var isLoaded = IsLoaded();
+        if (_wasLoaded && !isLoaded) OnGameUnloaded?.Invoke();
+        _wasLoaded = isLoaded;
+
+        if (!isLoaded)
         {
             _hitService.ResetFlags();
             return;
@@ -113,6 +124,11 @@ public class EldenRingModule : IGameModule, IDisposable, IVersionedGameModule
         if (_eventService.ShouldSplit())
         {
             OnEventSet?.Invoke();
+        }
+
+        if (_bossHealthBarService.TryGetLatestSpawn(out var entityId))
+        {
+            OnBossHealthBarSpawn?.Invoke(entityId);
         }
 
         _eventLogReader.Poll();
@@ -136,6 +152,10 @@ public class EldenRingModule : IGameModule, IDisposable, IVersionedGameModule
         OnEventLogEntriesReceived = null;
         OnTimeChanged = null;
         OnRunStart = null;
+        OnBossHealthBarSpawn = null;
+        OnBossNodeChanged = null;
+        OnBossGaugeActivated = null;
+        OnGameUnloaded = null;
     }
     
     public void UpdateEvents(Dictionary<uint, (string Name, int Required, int Hit)> events)

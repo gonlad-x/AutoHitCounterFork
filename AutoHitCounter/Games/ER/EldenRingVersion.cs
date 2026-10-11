@@ -32,4 +32,5 @@ public enum EldenRingVersion
     [Description("1.16")]    Version2_6_0,
     [Description("1.16.1")]  Version2_6_1,
     [Description("1.16.2")]  Version2_6_2,
+    [Description("1.17")]    Version2_7_0,
 }

@@ -23,17 +23,23 @@ public class DS3Module : IGameModule, IDisposable, IVersionedGameModule
     public string GameVersion => DS3Offsets.IsAobFallback ? "Unknown Patch" : DS3Offsets.Version.GetDescription();
 
     private DateTime? _lastHit;
+    private bool _wasLoaded;
     private DS3HitService _hitService;
     private DS3EventService _eventService;
     private DS3SettingsService _settingsService;
     private EventLogReader _eventLogReader;
     private DS3RunStartService _runStartService;
+    private DS3BossHealthBarService _bossHealthBarService;
 
     public event Action OnHit;
     public event Action OnEventSet;
     public event Action<List<EventLogEntry>> OnEventLogEntriesReceived;
     public event Action<long> OnTimeChanged;
     public event Action OnRunStart;
+    public event Action<uint> OnBossHealthBarSpawn;
+    public event Action<uint, int> OnBossNodeChanged; // never raised (Sekiro-only feature)
+    public event Action OnBossGaugeActivated;
+    public event Action OnGameUnloaded;
     public event Action OnVersionDetected;
 
     public DS3Module(IMemoryService memoryService, IStateService stateService, HookManager hookManager,
@@ -66,6 +72,7 @@ public class DS3Module : IGameModule, IDisposable, IVersionedGameModule
             Base + EventLogWriteIdx,
             Base + EventLogBuffer);
         _runStartService = new DS3RunStartService(_memoryService, _hookManager);
+        _bossHealthBarService = new DS3BossHealthBarService(_memoryService);
         _eventLogReader.EntriesReceived += entries => OnEventLogEntriesReceived?.Invoke(entries);
 
         ApplySettings(onlyEnabled: true);
@@ -73,7 +80,6 @@ public class DS3Module : IGameModule, IDisposable, IVersionedGameModule
         _eventService.InstallHook();
         _hitService.InstallHooks();
         _runStartService.InstallHook();
-
 
         _tickService.RegisterGameTick(Tick);
 
@@ -95,8 +101,12 @@ public class DS3Module : IGameModule, IDisposable, IVersionedGameModule
     private void Tick()
     {
         if (_runStartService.IsNewGameStarted()) OnRunStart?.Invoke();
-        
-        if (!IsLoaded())
+
+        var isLoaded = IsLoaded();
+        if (_wasLoaded && !isLoaded) OnGameUnloaded?.Invoke();
+        _wasLoaded = isLoaded;
+
+        if (!isLoaded)
         {
             _hitService.ResetFlags();
             return;
@@ -114,6 +124,11 @@ public class DS3Module : IGameModule, IDisposable, IVersionedGameModule
         if (_eventService.ShouldSplit())
         {
             OnEventSet?.Invoke();
+        }
+
+        if (_bossHealthBarService.TryGetLatestSpawn(out var entityId))
+        {
+            OnBossHealthBarSpawn?.Invoke(entityId);
         }
 
         _eventLogReader.Poll();
@@ -137,6 +152,10 @@ public class DS3Module : IGameModule, IDisposable, IVersionedGameModule
         OnEventLogEntriesReceived = null;
         OnTimeChanged = null;
         OnRunStart = null;
+        OnBossHealthBarSpawn = null;
+        OnBossNodeChanged = null;
+        OnBossGaugeActivated = null;
+        OnGameUnloaded = null;
     }
 
     public void UpdateEvents(Dictionary<uint, (string Name, int Required, int Hit)> events)

@@ -26,17 +26,23 @@ public class DS2Module : IGameModule, IDisposable, IVersionedGameModule
     private DS2SettingsService _settingsService;
     private DS2IgtService _igtService;
     private EventLogReader _eventLogReader;
+    private DS2BossGaugeService _bossGaugeService;
     private readonly IHitRulesProvider _rules;
 
     public string GameVersion => DS2Offsets.Version.GetDescription();
 
     private DateTime? _lastHit;
+    private bool _wasLoaded;
 
     public event Action OnHit;
     public event Action OnEventSet;
     public event Action<List<EventLogEntry>> OnEventLogEntriesReceived;
     public event Action<long> OnTimeChanged;
     public event Action OnRunStart;
+    public event Action<uint> OnBossHealthBarSpawn;
+    public event Action<uint, int> OnBossNodeChanged; // never raised (Sekiro-only feature)
+    public event Action OnBossGaugeActivated;
+    public event Action OnGameUnloaded;
     public event Action OnVersionDetected;
 
     public DS2Module(IMemoryService memoryService, IStateService stateService, HookManager hookManager,
@@ -77,6 +83,7 @@ public class DS2Module : IGameModule, IDisposable, IVersionedGameModule
             Base + EventLogWriteIdx,
             Base + EventLogBuffer);
         _eventLogReader.EntriesReceived += entries => OnEventLogEntriesReceived?.Invoke(entries);
+        _bossGaugeService = new DS2BossGaugeService(_memoryService);
 
         ApplySettings(onlyEnabled: true);
 
@@ -107,8 +114,12 @@ public class DS2Module : IGameModule, IDisposable, IVersionedGameModule
     {
         
         
-        if (!IsLoaded()) _hitService.ResetFlags();
-        
+        var isLoaded = IsLoaded();
+        if (_wasLoaded && !isLoaded) OnGameUnloaded?.Invoke();
+        _wasLoaded = isLoaded;
+
+        if (!isLoaded) _hitService.ResetFlags();
+
         _hitService.EnsureHooksInstalled();
         
         if (_hitService.HasHit() && (_lastHit == null || (DateTime.Now - _lastHit.Value).TotalSeconds > 3))
@@ -126,6 +137,11 @@ public class DS2Module : IGameModule, IDisposable, IVersionedGameModule
 
         _igtService.Update();
         OnTimeChanged?.Invoke(_igtService.ElapsedMilliseconds);
+
+        if (_bossGaugeService.TryGetActivation())
+        {
+            OnBossGaugeActivated?.Invoke();
+        }
     }
 
     private bool IsLoaded()
@@ -152,6 +168,10 @@ public class DS2Module : IGameModule, IDisposable, IVersionedGameModule
         OnEventLogEntriesReceived = null;
         OnTimeChanged = null;
         OnRunStart = null;
+        OnBossHealthBarSpawn = null;
+        OnBossNodeChanged = null;
+        OnBossGaugeActivated = null;
+        OnGameUnloaded = null;
     }
 
     public void UpdateEvents(Dictionary<uint, (string Name, int Required, int Hit)> events)

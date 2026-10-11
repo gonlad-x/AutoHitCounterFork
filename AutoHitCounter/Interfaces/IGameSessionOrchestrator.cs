@@ -15,6 +15,15 @@ public interface IGameSessionOrchestrator : IDisposable
     event Action<List<EventLogEntry>> EventLogEntries;
     event Action<long> TimeChangedMs;
     event Action AttachmentChanged;
+    event Action<uint> BossHealthBarSpawnDetected;
+
+    // A displayed boss's deathblow/phase node decremented (Sekiro only).
+    // Carries (entityId, newNode) -- see IGameModule.OnBossNodeChanged.
+    event Action<uint, int> BossNodeChangedDetected;
+
+    event Action BossGaugeActivated;
+
+    event Action GameUnloaded;
 
     void Initialize(IHitRulesProvider hitRulesProvider,
         Func<Dictionary<uint, (string Name, int Required, int Hit)>> activeEventsProvider);

@@ -985,13 +985,14 @@ namespace AutoHitCounter.Properties {
         ///   Looks up a localized string similar to 4c 8b 01                mov    r8,QWORD PTR [rcx]
         ///48 63 c2                movsxd rax,edx
         ///80 3d 00 00 00 00 00    cmp    BYTE PTR [rip+0x0],0x0        # d &lt;_main+0xd&gt;
-        ///74 0f                   je     1e &lt;check_wet&gt;
+        ///74 14                   je     23 &lt;check_wet&gt;
         ///c6 05 00 00 00 00 00    mov    BYTE PTR [rip+0x0],0x0        # 16 &lt;_main+0x16&gt;
-        ///ff 05 00 00 00 00       inc    DWORD PTR [rip+0x0]        # 1c &lt;_main+0x1c&gt;
-        ///eb 1b                   jmp    39 &lt;skip&gt;
+        ///83 fa 02                cmp    edx,0x2
+        ///74 23                   je     3e &lt;skip&gt;
+        ///ff 05 00 00 00 00       inc    DWORD PTR [rip+0x0]        # 21 &lt;_main+0x21&gt;
+        ///eb 1b                   jmp    3e &lt;skip&gt;
         ///
-        ///00000000001e &lt;check_wet&gt;:
-        ///80 3d 00 00 00 00 00    cmp    BYTE PTR [rip+0x0],0x0        # 25 &lt;c [rest of string was truncated]&quot;;.
+        ///000000000023  [rest of string was truncated]&quot;;.
         /// </summary>
         internal static string ScholarCountAuxHit {
             get {
@@ -1575,17 +1576,17 @@ namespace AutoHitCounter.Properties {
         /// <summary>
         ///   Looks up a localized string similar to f3 0f 10 55 0c          movss  xmm2,DWORD PTR [ebp+0xc]
         ///80 3d 00 00 00 00 00    cmp    BYTE PTR ds:0x0,0x0
-        ///74 0f                   je     1d &lt;check_wet&gt;
+        ///74 14                   je     22 &lt;check_wet&gt;
         ///c6 05 00 00 00 00 00    mov    BYTE PTR ds:0x0,0x0
+        ///83 f8 02                cmp    eax,0x2
+        ///74 23                   je     3d &lt;skip&gt;
         ///ff 05 00 00 00 00       inc    DWORD PTR ds:0x0
-        ///eb 1b                   jmp    38 &lt;skip&gt;
+        ///eb 1b                   jmp    3d &lt;skip&gt;
         ///
-        ///001d &lt;check_wet&gt;:
+        ///0022 &lt;check_wet&gt;:
         ///80 3d 00 00 00 00 00    cmp    BYTE PTR ds:0x0,0x0
-        ///74 12                   je     38 &lt;skip&gt;
-        ///83 f8 00                cmp    eax,0x0
-        ///75 0d                   jne    38 &lt;skip&gt;
-        ///c6 05 00 00 00 0 [rest of string was truncated]&quot;;.
+        ///74 12                   je     3d &lt;skip&gt;
+        ///83 f8 00         [rest of string was truncated]&quot;;.
         /// </summary>
         internal static string VanillaCountAuxHit {
             get {

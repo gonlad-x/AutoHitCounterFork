@@ -4,10 +4,12 @@ using System;
 
 namespace AutoHitCounter.Models;
 
-public class RunSnapshot(int currentSplitIndex, int[] hitCounts, bool isRunComplete, TimeSpan inGameTime)
+public class RunSnapshot(int currentSplitIndex, int[] hitCounts, long?[] bossKillTimesMs, PhaseResult[][] phaseResults, bool isRunComplete, TimeSpan inGameTime)
 {
     public int CurrentSplitIndex { get; } = currentSplitIndex;
     public int[] HitCounts { get; } = hitCounts;
+    public long?[] BossKillTimesMs { get; } = bossKillTimesMs;
+    public PhaseResult[][] PhaseResults { get; } = phaseResults;
     public bool IsRunComplete { get; } = isRunComplete;
     public TimeSpan InGameTime { get; } = inGameTime;
 }
