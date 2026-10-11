@@ -99,7 +99,7 @@ public static class DSROffsets
     public static nint FallDmgRetAddr;
     public static nint AuxDeathRetAddr;
     public static nint EnvDeathRetAddr;
-    
+    public static nint HitEntityDeathRetAddr;
     
     
     public static class Hooks
@@ -175,9 +175,19 @@ public static class DSROffsets
             Version1_0_1_1 => 0x11517F5,
             Version1_0_1_2 => 0x31A89D,
             Version1_0_3_0 => 0x32084D,
-            Version1_0_3_1 => 0x322A9D,        
+            Version1_0_3_1 => 0x322A9D,
             _ => 0
         };
+        
+        HitEntityDeathRetAddr = moduleBase + Version switch
+        {
+            Version1_0_1_0 => 0x311873,
+            Version1_0_1_1 => 0x44169DB2,
+            Version1_0_3_0 => 0x32084D,
+            Version1_0_3_1 => 0x322A9D,
+            _ => 0
+        };
+
 
         
         Hooks.Hit = moduleBase + Version switch
@@ -284,6 +294,7 @@ public static class DSROffsets
         Console.WriteLine("--- Globals ---");
         PrintOffset("WorldChrMan", WorldChrMan.Base);
         PrintOffset("MenuMan", MenuMan.Base);
+        PrintOffset("GameDataMan", GameDataMan.Base);
 
         PrintOffset("FallDmgRetAddr", FallDmgRetAddr);
         PrintOffset("AuxDeathRetAddr", AuxDeathRetAddr);
