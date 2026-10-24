@@ -25,6 +25,9 @@ public interface IGameSessionOrchestrator : IDisposable
 
     event Action GameUnloaded;
 
+    // Live boss HP, raised each tick by modules that implement IBossHealthSource (Elden Ring).
+    event Action<BossHealthSnapshot> BossHealthChanged;
+
     void Initialize(IHitRulesProvider hitRulesProvider,
         Func<Dictionary<uint, (string Name, int Required, int Hit)>> activeEventsProvider);
 

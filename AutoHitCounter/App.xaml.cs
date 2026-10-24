@@ -16,6 +16,7 @@ namespace AutoHitCounter
     {
         private static Mutex _mutex;
         MainViewModel _mainViewModel;
+        DiscordPresenceService _discordPresenceService;
 
         protected override void OnStartup(StartupEventArgs e)
         {
@@ -68,6 +69,8 @@ namespace AutoHitCounter
             var customGameService = new CustomGameService(new SettingsCustomGamesStore(), profileService, runStateService);
             var orchestrator = new GameSessionOrchestrator(memoryService, hotkeyManager, gameModuleFactory, stateService, tickService);
 
+            _discordPresenceService = new DiscordPresenceService(orchestrator, gameModuleFactory);
+
             _mainViewModel = new MainViewModel(hotkeyManager, gameModuleFactory, profileService,
                 stateService,
                 settingsViewModel, hotkeysViewModel, overlayServerService, splitNavigationService, externalIntegrationService,
@@ -87,6 +90,7 @@ namespace AutoHitCounter
         {
             ThemeService.StopWatchingSystem();
             _mainViewModel?.FlushRunState();
+            _discordPresenceService?.Dispose();
             base.OnExit(e);
         }
     }

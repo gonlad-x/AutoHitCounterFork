@@ -40,8 +40,14 @@
     <Reference Include="Costura, Version=6.0.0.0, Culture=neutral, PublicKeyToken=9919ef960d84173d, processorArchitecture=MSIL">
       <HintPath>..\packages\Costura.Fody.6.0.0\lib\netstandard2.0\Costura.dll</HintPath>
     </Reference>
+    <Reference Include="DiscordRPC, Version=1.6.1.70, Culture=neutral, processorArchitecture=MSIL">
+      <HintPath>..\packages\DiscordRichPresence.1.6.1.70\lib\net45\DiscordRPC.dll</HintPath>
+    </Reference>
     <Reference Include="Fleck, Version=1.2.0.0, Culture=neutral, processorArchitecture=MSIL">
       <HintPath>..\packages\Fleck.1.2.0\lib\net45\Fleck.dll</HintPath>
+    </Reference>
+    <Reference Include="Newtonsoft.Json, Version=13.0.0.0, Culture=neutral, PublicKeyToken=30ad4fe6b2a6aeed, processorArchitecture=MSIL">
+      <HintPath>..\packages\Newtonsoft.Json.13.0.1\lib\net45\Newtonsoft.Json.dll</HintPath>
     </Reference>
     <Reference Include="H.Hooks, Version=2.0.0.0, Culture=neutral, PublicKeyToken=603f13207e65c17b, processorArchitecture=MSIL">
       <HintPath>..\packages\H.Hooks.2.1.0-dev.26\lib\net462\H.Hooks.dll</HintPath>
@@ -171,6 +177,7 @@
     <Compile Include="Games\DSR\DSRRunStartService.cs" />
     <Compile Include="Games\DSR\DSRVersion.cs" />
     <Compile Include="Games\ER\EldenRingBossHealthBarService.cs" />
+    <Compile Include="Games\ER\EldenRingBossHpService.cs" />
     <Compile Include="Games\ER\EldenRingCustomCodeOffsets.cs" />
     <Compile Include="Games\ER\EldenRingEventService.cs" />
     <Compile Include="Games\ER\EldenRingHitService.cs" />
@@ -202,6 +209,7 @@
     <Compile Include="Interfaces\ICustomGamesStore.cs" />
     <Compile Include="Interfaces\IHitService.cs" />
     <Compile Include="Interfaces\IHotkeyManager.cs" />
+    <Compile Include="Interfaces\IBossHealthSource.cs" />
     <Compile Include="Interfaces\IOverlayServerService.cs" />
     <Compile Include="Interfaces\IProfileService.cs" />
     <Compile Include="Interfaces\IReorderHandler.cs" />
@@ -217,6 +225,7 @@
     <Compile Include="Memory\Kernel32.cs" />
     <Compile Include="Memory\Patterns\AddressingMode.cs" />
     <Compile Include="Memory\Patterns\Pattern.cs" />
+    <Compile Include="Models\BossHealthSnapshot.cs" />
     <Compile Include="Models\EventLogEntry.cs" />
     <Compile Include="Models\Game.cs" />
     <Compile Include="Models\HitPayload.cs" />
@@ -228,6 +237,7 @@
     <Compile Include="Models\RunState.cs" />
     <Compile Include="Models\SplitEntry.cs" />
     <Compile Include="Services\CustomGameService.cs" />
+    <Compile Include="Services\DiscordPresenceService.cs" />
     <Compile Include="Services\EventLogReader.cs" />
     <Compile Include="Services\EventServiceBase.cs" />
     <Compile Include="Services\ExternalIntegrationService.cs" />

@@ -67,22 +67,28 @@ public class EldenRingBossHealthBarService(IMemoryService memoryService)
     {
         entityId = 0;
 
-        var poolIndex = (entityHandle >> 20) & 0xFF;
-        var slotIndex = entityHandle & 0xFFFFF;
-
-        var worldChrMan = memoryService.Read<nint>(WorldChrMan.Base);
-        if (worldChrMan == 0) return false;
-
-        var chrSet = memoryService.Read<nint>(worldChrMan + WorldChrMan.ChrSetPool + poolIndex * 8);
-        if (chrSet == 0) return false;
-
-        var entriesBase = memoryService.Read<nint>(chrSet + WorldChrMan.ChrSetEntries);
-        if (entriesBase == 0) return false;
-
-        var chrIns = memoryService.Read<nint>(entriesBase + slotIndex * 16);
+        var chrIns = ResolveChrIns(entityHandle);
         if (chrIns == 0) return false;
 
         entityId = (uint)memoryService.Read<int>(chrIns + WorldChrMan.ChrIns.EntityId);
         return true;
+    }
+
+    // Pure-read entityHandle -> ChrIns* walk; returns 0 if any link is null.
+    public nint ResolveChrIns(int entityHandle)
+    {
+        var poolIndex = (entityHandle >> 20) & 0xFF;
+        var slotIndex = entityHandle & 0xFFFFF;
+
+        var worldChrMan = memoryService.Read<nint>(WorldChrMan.Base);
+        if (worldChrMan == 0) return 0;
+
+        var chrSet = memoryService.Read<nint>(worldChrMan + WorldChrMan.ChrSetPool + poolIndex * 8);
+        if (chrSet == 0) return 0;
+
+        var entriesBase = memoryService.Read<nint>(chrSet + WorldChrMan.ChrSetEntries);
+        if (entriesBase == 0) return 0;
+
+        return memoryService.Read<nint>(entriesBase + slotIndex * 16);
     }
 }

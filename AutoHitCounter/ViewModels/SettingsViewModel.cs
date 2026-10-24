@@ -176,6 +176,19 @@ public class SettingsViewModel : BaseViewModel
         }
     }
 
+    private bool _erDiscordPresenceEnabled;
+
+    public bool ERDiscordPresenceEnabled
+    {
+        get => _erDiscordPresenceEnabled;
+        set
+        {
+            if (!SetProperty(ref _erDiscordPresenceEnabled, value)) return;
+            SettingsManager.Default.ERDiscordPresenceEnabled = value;
+            SettingsManager.Default.Save();
+        }
+    }
+
     #endregion
 
     #region Dark Souls 3
@@ -494,6 +507,9 @@ public class SettingsViewModel : BaseViewModel
 
         _erBossTimeTrackersEnabled = SettingsManager.Default.ERBossTimeTrackersEnabled;
         OnPropertyChanged(nameof(ERBossTimeTrackersEnabled));
+
+        _erDiscordPresenceEnabled = SettingsManager.Default.ERDiscordPresenceEnabled;
+        OnPropertyChanged(nameof(ERDiscordPresenceEnabled));
     }
 
     private void ApplyDS3Settings()

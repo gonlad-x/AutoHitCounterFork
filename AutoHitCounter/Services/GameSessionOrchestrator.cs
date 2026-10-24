@@ -68,6 +68,8 @@ public class GameSessionOrchestrator : IGameSessionOrchestrator
 
     public event Action GameUnloaded;
 
+    public event Action<BossHealthSnapshot> BossHealthChanged;
+
     public Game ActiveGame => _activeGame;
 
     public bool IsAttached => _isAttached;
@@ -140,6 +142,7 @@ public class GameSessionOrchestrator : IGameSessionOrchestrator
         BossNodeChangedDetected = null;
         BossGaugeActivated = null;
         GameUnloaded = null;
+        BossHealthChanged = null;
     }
 
     private void SwapModule()
@@ -188,6 +191,8 @@ public class GameSessionOrchestrator : IGameSessionOrchestrator
         _currentModule.OnBossNodeChanged += (entityId, newNode) => BossNodeChangedDetected?.Invoke(entityId, newNode);
         _currentModule.OnBossGaugeActivated += () => BossGaugeActivated?.Invoke();
         _currentModule.OnGameUnloaded += () => GameUnloaded?.Invoke();
+        if (_currentModule is IBossHealthSource healthSource)
+            healthSource.OnBossHealth += snapshot => BossHealthChanged?.Invoke(snapshot);
 
         if (_eventLogEnabled)
             _currentModule.SetEventLogEnabled(true);

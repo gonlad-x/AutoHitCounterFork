@@ -12,7 +12,7 @@ using static AutoHitCounter.Games.ER.EldenRingCustomCodeOffsets;
 
 namespace AutoHitCounter.Games.ER;
 
-public class EldenRingModule : IGameModule, IDisposable, IVersionedGameModule
+public class EldenRingModule : IGameModule, IDisposable, IVersionedGameModule, IBossHealthSource
 {
     private readonly IMemoryService _memoryService;
     private readonly IStateService _stateService;
@@ -25,6 +25,7 @@ public class EldenRingModule : IGameModule, IDisposable, IVersionedGameModule
     private EventLogReader _eventLogReader;
     private IRunStartService _runStartService;
     private EldenRingBossHealthBarService _bossHealthBarService;
+    private EldenRingBossHpService _bossHpService;
 
     public string GameVersion => EldenRingOffsets.IsAobFallback
         ? EldenRingOffsets.DetectedAppVersion?.ToString() ?? "Unknown Patch"
@@ -44,6 +45,7 @@ public class EldenRingModule : IGameModule, IDisposable, IVersionedGameModule
     public event Action OnBossGaugeActivated;
     public event Action OnGameUnloaded;
     public event Action OnVersionDetected;
+    public event Action<BossHealthSnapshot> OnBossHealth;
     
     public EldenRingModule(IMemoryService memoryService, IStateService stateService, HookManager hookManager,
         ITickService tickService, Dictionary<uint, (string Name, int Required, int Hit)> events)
@@ -76,6 +78,7 @@ public class EldenRingModule : IGameModule, IDisposable, IVersionedGameModule
             Base + EventLogBuffer);
         _runStartService = new EldenRingRunStartService(_memoryService, _hookManager);
         _bossHealthBarService = new EldenRingBossHealthBarService(_memoryService);
+        _bossHpService = new EldenRingBossHpService(_memoryService, _bossHealthBarService);
         _eventLogReader.EntriesReceived += entries => OnEventLogEntriesReceived?.Invoke(entries);
 
         ApplySettings(onlyEnabled: true);
@@ -112,6 +115,7 @@ public class EldenRingModule : IGameModule, IDisposable, IVersionedGameModule
         if (!isLoaded)
         {
             _hitService.ResetFlags();
+            OnBossHealth?.Invoke(BossHealthSnapshot.Inactive);
             return;
         }
         
@@ -132,6 +136,8 @@ public class EldenRingModule : IGameModule, IDisposable, IVersionedGameModule
         {
             OnBossHealthBarSpawn?.Invoke(entityId);
         }
+
+        OnBossHealth?.Invoke(_bossHpService.Read());
 
         _eventLogReader.Poll();
 
@@ -158,6 +164,7 @@ public class EldenRingModule : IGameModule, IDisposable, IVersionedGameModule
         OnBossNodeChanged = null;
         OnBossGaugeActivated = null;
         OnGameUnloaded = null;
+        OnBossHealth = null;
     }
     
     public void UpdateEvents(Dictionary<uint, (string Name, int Required, int Hit)> events)

@@ -44,6 +44,7 @@ public class SettingsManager
     public bool ERStutterFix { get; set; }
     public bool ERDisableAchievements { get; set; }
     public bool ERBossTimeTrackersEnabled { get; set; }
+    public bool ERDiscordPresenceEnabled { get; set; }
     public bool SKNoLogo { get; set; }
     public bool SKNoTutorials { get; set; }
     public bool SKBossTimeTrackersEnabled { get; set; }

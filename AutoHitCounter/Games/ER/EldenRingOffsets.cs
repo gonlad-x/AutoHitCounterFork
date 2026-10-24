@@ -117,6 +117,13 @@ public static class EldenRingOffsets
                     or Version1_4_0 or Version1_4_1 or Version1_5_0 or Version1_6_0 or Version1_7_0 => 0x1E4,
                 _ => 0x1E8,
             };
+
+            // Same values as TarnishedTool's ChrIns.Modules / ChrDataModule / ChrDataOffsets.
+            // Modules is a pointer at ChrIns+0x190; ChrData is its first entry.
+            public const int Modules = 0x190;
+            public const int ChrDataModule = 0x0;
+            public const int ChrDataHealth = 0x138;
+            public const int ChrDataMaxHealth = 0x13C;
         }
     }
 
@@ -290,6 +297,11 @@ public static class EldenRingOffsets
         CSFeMan.Base = moduleBase + Version switch
         {
             Version2_6_0 or Version2_6_1 or Version2_6_2 => 0x3D6B880,
+            // 1.17.1: same CSFeManImp lazy-construction pattern as above (MOV ECX,0x8420 ...
+            // MOV [rip+disp],RAX), found by scanning the on-disk exe -- write instruction at RVA
+            // 0x766EE8, disp32 0x03608A01. Slot layout (BossHealthDisplaySlotBase etc.) is
+            // unverified on this version.
+            Version2_7_1 => 0x3D6F8F0,
             _ => 0
         };
 
